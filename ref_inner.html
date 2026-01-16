@@ -5797,15 +5797,13 @@ ${i}`
           n = /struct\s+(\w+)\s*{([^}]+)}/g,
           a = /(\w+)\s*:\s*([\w\<\>]+)/g,
           l = /struct\s+(\w+)/,
-          h = i
-            .match(e)
-            ?.map((o) => ({
-              group: parseInt(o.match(t)[1], 10),
-              binding: parseInt(o.match(A)[1], 10),
-              name: o.match(r)[2],
-              isUniform: o.match(r)[1] === '<uniform>',
-              type: o.match(s)[1],
-            }));
+          h = i.match(e)?.map((o) => ({
+            group: parseInt(o.match(t)[1], 10),
+            binding: parseInt(o.match(A)[1], 10),
+            name: o.match(r)[2],
+            isUniform: o.match(r)[1] === '<uniform>',
+            type: o.match(s)[1],
+          }));
         if (!h) return { groups: [], structs: [] };
         const u =
           i
@@ -28340,76 +28338,80 @@ fn mainFragment(
         }
       }
     </style>
+    //
     <script>
-      // Playbox Content Protection Warning
-      (function () {
-        console.log(
-          '%c⚠️ CONTENT PROTECTION WARNING',
-          'font-size: 20px; color: #ff0000; font-weight: bold; background: #000; padding: 10px;'
-        );
-        console.log('%c╔════════════════════════════════════════════════════════════╗', 'color: #ff0000; font-weight: bold;');
-        console.log('%c║        PLAYBOX CONTENT PROTECTION SYSTEM ACTIVE           ║', 'color: #ff0000; font-weight: bold;');
-        console.log('%c╚════════════════════════════════════════════════════════════╝', 'color: #ff0000; font-weight: bold;');
-        console.log('');
-        console.log('%cThis playable is protected and ALL access is being tracked.', 'font-size: 14px; font-weight: bold;');
-        console.log('');
-        console.log('%cYour session information:', 'font-weight: bold; text-decoration: underline;');
-        console.log('  Session ID: 1541192a-7cde-4174-b9f1-850d44ae5443');
-        console.log('  Organization: playbox');
-        console.log('  Timestamp: 2026-01-16T01:09:57.876Z');
-        console.log('  Country: unknown');
-        console.log('');
-        console.log('%cUnauthorized copying, distribution, or reverse engineering is:', 'font-weight: bold; color: #ff0000;');
-        console.log('  ❌ Tracked through embedded watermarks');
-        console.log('  ❌ Prohibited by Terms of Service');
-        console.log('  ❌ Subject to legal action');
-        console.log('');
-        console.log('%cAll your activity is being logged:', 'font-weight: bold;');
-        console.log('  • Network requests and downloads');
-        console.log('  • DevTools usage and console access');
-        console.log('  • Browser fingerprint and device info');
-        console.log('  • Session duration and interactions');
-        console.log('');
-        console.log('%cFor licensing inquiries: legal@plbx.ai', 'color: #00ff00;');
-        console.log('');
-      })();
+      //   // Playbox Content Protection Warning
+      //   (function () {
+      //     console.log(
+      //       '%c⚠️ CONTENT PROTECTION WARNING',
+      //       'font-size: 20px; color: #ff0000; font-weight: bold; background: #000; padding: 10px;'
+      //     );
+      //     console.log('%c╔════════════════════════════════════════════════════════════╗', 'color: #ff0000; font-weight: bold;');
+      //     console.log('%c║        PLAYBOX CONTENT PROTECTION SYSTEM ACTIVE           ║', 'color: #ff0000; font-weight: bold;');
+      //     console.log('%c╚════════════════════════════════════════════════════════════╝', 'color: #ff0000; font-weight: bold;');
+      //     console.log('');
+      //     console.log('%cThis playable is protected and ALL access is being tracked.', 'font-size: 14px; font-weight: bold;');
+      //     console.log('');
+      //     console.log('%cYour session information:', 'font-weight: bold; text-decoration: underline;');
+      //     console.log('  Session ID: 1541192a-7cde-4174-b9f1-850d44ae5443');
+      //     console.log('  Organization: playbox');
+      //     console.log('  Timestamp: 2026-01-16T01:09:57.876Z');
+      //     console.log('  Country: unknown');
+      //     console.log('');
+      //     console.log('%cUnauthorized copying, distribution, or reverse engineering is:', 'font-weight: bold; color: #ff0000;');
+      //     console.log('  ❌ Tracked through embedded watermarks');
+      //     console.log('  ❌ Prohibited by Terms of Service');
+      //     console.log('  ❌ Subject to legal action');
+      //     console.log('');
+      //     console.log('%cAll your activity is being logged:', 'font-weight: bold;');
+      //     console.log('  • Network requests and downloads');
+      //     console.log('  • DevTools usage and console access');
+      //     console.log('  • Browser fingerprint and device info');
+      //     console.log('  • Session duration and interactions');
+      //     console.log('');
+      //     console.log('%cFor licensing inquiries: legal@plbx.ai', 'color: #00ff00;');
+      //     console.log('');
+      //   })();
+      //
     </script>
+    //
     <script>
-      /* Playbox CTA Helper - Auto-injected */
-      (function () {
-        var t = window.self === window.top;
-        function r(u) {
-          window.location.href = '/_redirect?url=' + encodeURIComponent(u || '');
-        }
-        (window.open = function (e) {
-          if (t) {
-            r(e);
-            return null;
-          }
-          try {
-            window.parent.postMessage({ type: 'CTA_CLICK', url: e || window.location.href }, '*');
-          } catch (e) {
-            console.error('[Playbox CTA] postMessage failed:', e);
-          }
-          return null;
-        }),
-          document.addEventListener(
-            'click',
-            function (e) {
-              for (var n = e.target; n && 'A' !== n.tagName; ) n = n.parentElement;
-              n &&
-                n.href &&
-                (0 === n.href.indexOf('http') || '_blank' === n.target) &&
-                (e.preventDefault(),
-                e.stopPropagation(),
-                t ? r(n.href) : window.parent.postMessage({ type: 'CTA_CLICK', url: n.href }, '*'));
-            },
-            !0
-          ),
-          (window.playboxCTA = function (e) {
-            return t ? (r(e), !0) : (window.parent.postMessage({ type: 'CTA_CLICK', url: e }, '*'), !0);
-          });
-      })();
+      //   /* Playbox CTA Helper - Auto-injected */
+      //   (function () {
+      //     var t = window.self === window.top;
+      //     function r(u) {
+      //       window.location.href = '/_redirect?url=' + encodeURIComponent(u || '');
+      //     }
+      //     (window.open = function (e) {
+      //       if (t) {
+      //         r(e);
+      //         return null;
+      //       }
+      //       try {
+      //         window.parent.postMessage({ type: 'CTA_CLICK', url: e || window.location.href }, '*');
+      //       } catch (e) {
+      //         console.error('[Playbox CTA] postMessage failed:', e);
+      //       }
+      //       return null;
+      //     }),
+      //       document.addEventListener(
+      //         'click',
+      //         function (e) {
+      //           for (var n = e.target; n && 'A' !== n.tagName; ) n = n.parentElement;
+      //           n &&
+      //             n.href &&
+      //             (0 === n.href.indexOf('http') || '_blank' === n.target) &&
+      //             (e.preventDefault(),
+      //             e.stopPropagation(),
+      //             t ? r(n.href) : window.parent.postMessage({ type: 'CTA_CLICK', url: n.href }, '*'));
+      //         },
+      //         !0
+      //       ),
+      //       (window.playboxCTA = function (e) {
+      //         return t ? (r(e), !0) : (window.parent.postMessage({ type: 'CTA_CLICK', url: e }, '*'), !0);
+      //       });
+      //   })();
+      //
     </script>
   </head>
   <body>
