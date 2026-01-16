@@ -1,0 +1,746 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#0b1020" />
+  <title>Runner</title>
+  <style>
+    :root{
+      --bg:#0b1020;
+      --fg:#eaf0ff;
+      --muted:#9fb0d0;
+      --accent:#6cf0c2;
+      --danger:#ff4d6d;
+      --card:rgba(255,255,255,.08);
+      --card2:rgba(255,255,255,.12);
+      --shadow:rgba(0,0,0,.35);
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;width:100%;overflow:hidden;background:var(--bg);touch-action:none;-webkit-user-select:none;user-select:none}
+    #root{position:fixed;inset:0;display:flex;align-items:stretch;justify-content:center}
+    canvas{width:100%;height:100%;display:block}
+
+    .ui{position:fixed;inset:0;pointer-events:none;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--fg)}
+    .hud{position:absolute;left:12px;right:12px;top:calc(12px + var(--safe-top));display:flex;gap:10px;align-items:center;justify-content:space-between}
+    .pill{
+      pointer-events:none;
+      background:linear-gradient(180deg,var(--card2),var(--card));
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:999px;
+      padding:8px 12px;
+      box-shadow:0 12px 30px var(--shadow);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      font-weight:700;
+      letter-spacing:.2px;
+    }
+    .pill span{color:var(--muted);font-weight:600;margin-right:8px}
+    .center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+    .panel{
+      width:min(92vw,420px);
+      pointer-events:auto;
+      background:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.06));
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:18px;
+      box-shadow:0 20px 60px var(--shadow);
+      padding:18px 16px;
+      text-align:center;
+    }
+    .title{font-size:26px;font-weight:900;letter-spacing:.3px}
+    .subtitle{margin-top:8px;color:var(--muted);font-size:14px;line-height:1.35}
+    .btnrow{display:flex;gap:10px;margin-top:14px}
+    .btn{
+      pointer-events:auto;
+      appearance:none;border:0;border-radius:14px;
+      padding:12px 14px;
+      font-weight:900;letter-spacing:.2px;
+      cursor:pointer;
+      flex:1;
+      box-shadow:0 12px 28px var(--shadow);
+      transform:translateZ(0);
+    }
+    .btn:active{transform:translateY(1px)}
+    .btn-primary{background:linear-gradient(180deg,#7af3cb,#46d8b1);color:#0b1020}
+    .btn-ghost{background:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.08));color:var(--fg);border:1px solid rgba(255,255,255,.12)}
+    .btn-danger{background:linear-gradient(180deg,#ff7b93,#ff4d6d);color:#19030a}
+    .hint{margin-top:12px;font-size:12px;color:rgba(234,240,255,.75)}
+    .rewardRow{display:flex;gap:10px;margin-top:14px}
+    .reward{
+      flex:1;aspect-ratio:1/1.05;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.12);
+      background:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.07));
+      display:flex;align-items:center;justify-content:center;
+      cursor:pointer;
+      position:relative;
+      overflow:hidden;
+    }
+    .reward b{font-size:13px;letter-spacing:.3px}
+    .reward::before{
+      content:"";
+      position:absolute;inset:-60%;
+      background:radial-gradient(circle at 30% 30%,rgba(108,240,194,.35),transparent 55%);
+      transform:rotate(18deg);
+    }
+    .bottomCta{position:absolute;left:12px;right:12px;bottom:calc(12px + var(--safe-bottom));pointer-events:none}
+    .download{
+      pointer-events:auto;
+      width:100%;
+      border-radius:16px;
+      padding:14px 16px;
+      border:0;
+      font-weight:1000;
+      letter-spacing:.4px;
+      background:linear-gradient(180deg,#ffffff,#e9f0ff);
+      color:#0b1020;
+      box-shadow:0 18px 40px var(--shadow);
+      cursor:pointer;
+    }
+    .sr{position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden}
+  </style>
+</head>
+<body>
+  <div id="root">
+    <canvas id="c" aria-label="Runner game canvas"></canvas>
+  </div>
+
+  <div class="ui" id="ui">
+    <div class="hud">
+      <div class="pill" id="scorePill"><span>SCORE</span><b id="score">0</b></div>
+      <div class="pill" id="distPill"><span>DIST</span><b id="dist">0m</b></div>
+    </div>
+
+    <div class="center" id="startScreen">
+      <div class="panel">
+        <div class="title">RUNNER</div>
+        <div class="subtitle">Swipe / drag to change lanes.<br/>Dodge blocks, grab coins, reach the finish reward.</div>
+        <div class="btnrow">
+          <button class="btn btn-primary" id="btnPlay">PLAY</button>
+          <button class="btn btn-ghost" id="btnSound">SOUND: ON</button>
+        </div>
+        <div class="hint">Tip: quick flicks snap lanes; slow drag steers smoothly.</div>
+      </div>
+    </div>
+
+    <div class="center" id="endScreen" style="display:none">
+      <div class="panel">
+        <div class="title" id="endTitle">Congratulation!</div>
+        <div class="subtitle" id="endSubtitle">Choose your reward!</div>
+        <div class="rewardRow">
+          <button class="reward" data-reward="1" aria-label="Reward 1"><b>BOX 1</b></button>
+          <button class="reward" data-reward="2" aria-label="Reward 2"><b>BOX 2</b></button>
+          <button class="reward" data-reward="3" aria-label="Reward 3"><b>BOX 3</b></button>
+        </div>
+        <div class="btnrow">
+          <button class="btn btn-danger" id="btnRetry">RETRY</button>
+          <button class="btn btn-primary" id="btnInstall">INSTALL &amp; EARN</button>
+        </div>
+        <div class="hint" id="endHint">Your score: 0</div>
+      </div>
+    </div>
+
+    <div class="bottomCta">
+      <button class="download" id="btnDownload">DOWNLOAD</button>
+      <div class="sr" id="a11yStatus" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <script>
+  (() => {
+    'use strict';
+
+    // ---- clickthrough helpers (playable-ad friendly) ----
+    const CLICK_URL =
+      (typeof window.clickTag === 'string' && window.clickTag) ||
+      (typeof window.clickTAG === 'string' && window.clickTAG) ||
+      (typeof window.ClickTag === 'string' && window.ClickTag) ||
+      'https://example.com';
+    function doClickthrough() {
+      try {
+        if (window.mraid && typeof window.mraid.open === 'function') { window.mraid.open(CLICK_URL); return; }
+      } catch {}
+      window.open(CLICK_URL, '_blank');
+    }
+
+    // ---- tiny audio (optional) ----
+    const SFX = (() => {
+      let ctx = null;
+      let enabled = true;
+      function ensure() {
+        if (!enabled) return null;
+        if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (ctx.state === 'suspended') ctx.resume().catch(()=>{});
+        return ctx;
+      }
+      function beep(freq, dur, gain=0.04, type='sine') {
+        const a = ensure(); if (!a) return;
+        const o = a.createOscillator();
+        const g = a.createGain();
+        o.type = type; o.frequency.value = freq;
+        g.gain.value = gain;
+        o.connect(g); g.connect(a.destination);
+        o.start();
+        o.stop(a.currentTime + dur);
+      }
+      return {
+        get enabled(){ return enabled; },
+        set enabled(v){ enabled = !!v; if (!enabled && ctx) { /* keep ctx */ } },
+        coin(){ beep(880, 0.06, 0.05, 'triangle'); },
+        hit(){ beep(140, 0.12, 0.07, 'sawtooth'); },
+        start(){ beep(520, 0.07, 0.05, 'square'); beep(780, 0.08, 0.04, 'square'); },
+        reward(){ beep(660,0.06,0.05,'triangle'); beep(990,0.10,0.05,'triangle'); },
+      };
+    })();
+
+    // ---- canvas / scaling ----
+    const canvas = document.getElementById('c');
+    const g = canvas.getContext('2d', { alpha: false, desynchronized: true });
+    const DPR = () => Math.max(1, Math.min(2, window.devicePixelRatio || 1)); // cap for perf
+    let W=0, H=0, dpr=1;
+    function resize() {
+      dpr = DPR();
+      const rect = canvas.getBoundingClientRect();
+      W = Math.max(1, Math.floor(rect.width * dpr));
+      H = Math.max(1, Math.floor(rect.height * dpr));
+      canvas.width = W;
+      canvas.height = H;
+    }
+    window.addEventListener('resize', resize, { passive:true });
+    resize();
+
+    // ---- game constants (tuned for portrait) ----
+    const LANES = 3;
+    const ROAD_W = 0.72;      // fraction of screen width
+    const ROAD_TOP = 0.10;    // y start (fraction)
+    const ROAD_BOT = 0.98;
+    const PLAYER_Y = 0.82;    // fraction (in road space)
+    const FINISH_DIST = 850;  // meters to "finish"
+    const OBSTACLE_RATE0 = 1.10; // spawns/sec initial
+    const OBSTACLE_RATE1 = 1.75; // at finish
+    const SPEED0 = 7.0;       // road units/sec
+    const SPEED1 = 12.5;
+
+    // ---- state ----
+    const ui = {
+      start: document.getElementById('startScreen'),
+      end: document.getElementById('endScreen'),
+      score: document.getElementById('score'),
+      dist: document.getElementById('dist'),
+      endHint: document.getElementById('endHint'),
+      btnPlay: document.getElementById('btnPlay'),
+      btnRetry: document.getElementById('btnRetry'),
+      btnInstall: document.getElementById('btnInstall'),
+      btnDownload: document.getElementById('btnDownload'),
+      btnSound: document.getElementById('btnSound'),
+      status: document.getElementById('a11yStatus'),
+    };
+
+    const rng = (min,max)=>min+Math.random()*(max-min);
+    const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+    const lerp = (a,b,t)=>a+(b-a)*t;
+    const easeOutCubic = t => 1 - Math.pow(1-t,3);
+
+    function roadXAt(yNorm, xNorm) {
+      // yNorm 0..1 along road, xNorm -1..1 across
+      const topW = ROAD_W * 0.42;
+      const botW = ROAD_W * 1.00;
+      const w = lerp(topW, botW, easeOutCubic(yNorm));
+      const cx = 0.5;
+      return (cx + xNorm * (w/2)) * W;
+    }
+    function roadYAt(yNorm) {
+      return lerp(ROAD_TOP, ROAD_BOT, yNorm) * H;
+    }
+    function laneXNorm(lane) {
+      // lane 0..LANES-1 -> xNorm -0.66..0.66
+      if (LANES === 1) return 0;
+      const t = lane/(LANES-1);
+      return lerp(-0.66, 0.66, t);
+    }
+
+    class Input {
+      constructor() {
+        this.active = false;
+        this.startX = 0;
+        this.lastX = 0;
+        this.dx = 0;
+        this.swipeAccum = 0;
+        this.pointerId = null;
+        this.onLaneDelta = null;
+        this.onSteer = null;
+
+        const onDown = (e) => {
+          this.active = true;
+          this.pointerId = e.pointerId ?? 'mouse';
+          this.startX = e.clientX;
+          this.lastX = e.clientX;
+          this.dx = 0;
+          this.swipeAccum = 0;
+          try { canvas.setPointerCapture(e.pointerId); } catch {}
+        };
+        const onMove = (e) => {
+          if (!this.active) return;
+          const x = e.clientX;
+          this.dx = x - this.lastX;
+          this.lastX = x;
+          this.swipeAccum += this.dx;
+          const w = Math.max(280, Math.min(window.innerWidth, 520));
+          const steer = clamp((x - window.innerWidth/2) / (w/2), -1, 1);
+          if (this.onSteer) this.onSteer(steer);
+          // snap by threshold
+          const thresh = Math.max(36, window.innerWidth * 0.10);
+          if (Math.abs(this.swipeAccum) >= thresh) {
+            const dir = this.swipeAccum > 0 ? 1 : -1;
+            this.swipeAccum = 0;
+            if (this.onLaneDelta) this.onLaneDelta(dir);
+          }
+        };
+        const onUp = () => { this.active = false; this.pointerId = null; };
+        canvas.addEventListener('pointerdown', onDown, { passive:true });
+        canvas.addEventListener('pointermove', onMove, { passive:true });
+        window.addEventListener('pointerup', onUp, { passive:true });
+        window.addEventListener('pointercancel', onUp, { passive:true });
+      }
+    }
+
+    class Game {
+      constructor() {
+        this.reset();
+      }
+      reset() {
+        this.t = 0;
+        this.running = false;
+        this.ended = false;
+        this.win = false;
+        this.score = 0;
+        this.dist = 0; // meters
+        this.lane = 1;
+        this.laneTarget = 1;
+        this.steer = 0;
+        this.obstacles = [];
+        this.coins = [];
+        this.fx = [];
+        this.spawnAcc = 0;
+        this.coinAcc = 0;
+        this.flash = 0;
+      }
+      start() {
+        this.reset();
+        this.running = true;
+        SFX.start();
+        ui.status.textContent = 'Game started';
+      }
+      end(win) {
+        this.running = false;
+        this.ended = true;
+        this.win = !!win;
+        this.flash = 1.0;
+        ui.status.textContent = win ? 'Finished. Choose reward.' : 'Crashed. Try again.';
+      }
+      speed() {
+        const p = clamp(this.dist / FINISH_DIST, 0, 1);
+        return lerp(SPEED0, SPEED1, p);
+      }
+      obstacleRate() {
+        const p = clamp(this.dist / FINISH_DIST, 0, 1);
+        return lerp(OBSTACLE_RATE0, OBSTACLE_RATE1, p);
+      }
+      spawnObstacle() {
+        // type: block or gate
+        const lane = Math.floor(rng(0, LANES));
+        const kind = Math.random() < 0.78 ? 'block' : 'gate';
+        const y = -0.08;
+        const w = kind === 'gate' ? 0.55 : 0.40;
+        const h = kind === 'gate' ? 0.10 : 0.14;
+        this.obstacles.push({ kind, lane, y, w, h, hit:false, color: kind==='gate' ? '#ffb703' : '#ff4d6d' });
+      }
+      spawnCoin() {
+        const lane = Math.floor(rng(0, LANES));
+        const y = -0.06;
+        this.coins.push({ lane, y, r: 0.07, taken:false });
+      }
+      addFX(x,y,kind) {
+        const n = kind === 'coin' ? 10 : 16;
+        for (let i=0;i<n;i++){
+          this.fx.push({
+            x, y,
+            vx: rng(-0.5,0.5),
+            vy: rng(-0.9,-0.2),
+            life: rng(0.35,0.65),
+            t: 0,
+            kind,
+          });
+        }
+      }
+      update(dt) {
+        if (!this.running) return;
+        this.t += dt;
+        const spd = this.speed(); // road units/sec (yNorm/sec)
+        this.dist += spd * dt * 10.2; // meters/sec-ish
+
+        // lane smoothing
+        const snap = 12; // higher = snappier
+        this.lane += (this.laneTarget - this.lane) * clamp(dt*snap,0,1);
+
+        // spawn obstacles
+        this.spawnAcc += dt * this.obstacleRate();
+        while (this.spawnAcc >= 1) {
+          this.spawnAcc -= 1;
+          this.spawnObstacle();
+          // occasionally add pair
+          if (Math.random() < 0.18) this.spawnObstacle();
+        }
+        // spawn coins
+        this.coinAcc += dt * lerp(0.65, 1.05, clamp(this.dist/FINISH_DIST,0,1));
+        while (this.coinAcc >= 1) { this.coinAcc -= 1; if (Math.random() < 0.85) this.spawnCoin(); }
+
+        // move entities down road
+        const dy = spd * dt;
+        for (const o of this.obstacles) o.y += dy;
+        for (const c of this.coins) c.y += dy;
+
+        // collision at player Y band
+        const py = PLAYER_Y;
+        const pl = this.lane;
+        const plLane = Math.round(pl);
+        const laneBlend = Math.abs(pl - plLane);
+        const playerHitBox = { lane: pl, y: py, w: 0.30 + laneBlend*0.08, h: 0.14 };
+
+        // obstacles
+        for (const o of this.obstacles) {
+          if (o.hit) continue;
+          if (o.y > py - 0.12 && o.y < py + 0.10) {
+            const dxLane = Math.abs(o.lane - playerHitBox.lane);
+            const hitLane = dxLane < 0.42; // generous, feels good on mobile
+            const hitY = Math.abs(o.y - py) < (o.h + playerHitBox.h) * 0.55;
+            if (hitLane && hitY) {
+              o.hit = true;
+              this.flash = 1.0;
+              SFX.hit();
+              // hit: end unless it's a "gate" (gate gives points)
+              if (o.kind === 'gate') {
+                const pts = 60 + Math.floor(this.speed()*6);
+                this.score += pts;
+                this.addFX(o.lane, o.y, 'coin');
+              } else {
+                this.addFX(o.lane, o.y, 'hit');
+                this.end(false);
+              }
+            }
+          }
+        }
+        // coins
+        for (const c of this.coins) {
+          if (c.taken) continue;
+          if (c.y > py - 0.12 && c.y < py + 0.08) {
+            const dxLane = Math.abs(c.lane - playerHitBox.lane);
+            if (dxLane < 0.46 && Math.abs(c.y - py) < 0.10) {
+              c.taken = true;
+              const pts = 25;
+              this.score += pts;
+              SFX.coin();
+              this.addFX(c.lane, c.y, 'coin');
+            }
+          }
+        }
+
+        // cleanup
+        this.obstacles = this.obstacles.filter(o => o.y < 1.20 && !(o.hit && o.kind==='gate' && o.y>1.05));
+        this.coins = this.coins.filter(c => c.y < 1.20 && !c.taken);
+
+        // fx
+        for (const p of this.fx) { p.t += dt; p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 1.6*dt; }
+        this.fx = this.fx.filter(p => p.t < p.life);
+
+        // finish
+        if (this.dist >= FINISH_DIST) {
+          this.score += 250;
+          SFX.reward();
+          this.end(true);
+        }
+
+        // flash decay
+        this.flash = Math.max(0, this.flash - dt*2.4);
+      }
+    }
+
+    // ---- renderer ----
+    function draw(gm) {
+      // background
+      const t = gm.t;
+      const grd = g.createLinearGradient(0,0,0,H);
+      grd.addColorStop(0,'#0b1020');
+      grd.addColorStop(0.55,'#121a35');
+      grd.addColorStop(1,'#060913');
+      g.fillStyle = grd;
+      g.fillRect(0,0,W,H);
+
+      // soft stars
+      g.globalAlpha = 0.18;
+      g.fillStyle = '#cfe3ff';
+      for (let i=0;i<45;i++){
+        const x = (Math.sin(i*91.7 + t*0.22)*0.5+0.5)*W;
+        const y = (Math.cos(i*61.3 + t*0.18)*0.5+0.5)*H*0.55;
+        const r = (i%4===0?1.4:0.9)*dpr;
+        g.beginPath(); g.arc(x,y,r,0,Math.PI*2); g.fill();
+      }
+      g.globalAlpha = 1;
+
+      // road polygon
+      const y0 = roadYAt(0), y1 = roadYAt(1);
+      const leftTop = roadXAt(0, -1), rightTop = roadXAt(0, 1);
+      const leftBot = roadXAt(1, -1), rightBot = roadXAt(1, 1);
+      g.save();
+      g.beginPath();
+      g.moveTo(leftTop, y0);
+      g.lineTo(rightTop, y0);
+      g.lineTo(rightBot, y1);
+      g.lineTo(leftBot, y1);
+      g.closePath();
+      const roadGrad = g.createLinearGradient(0,y0,0,y1);
+      roadGrad.addColorStop(0,'#161f3f');
+      roadGrad.addColorStop(1,'#0a0f22');
+      g.fillStyle = roadGrad;
+      g.fill();
+      g.clip();
+
+      // lane lines
+      g.globalAlpha = 0.35;
+      g.strokeStyle = '#d6e4ff';
+      g.lineWidth = 2*dpr;
+      for (let l=1;l<LANES;l++){
+        const xN = lerp(-1,1,l/LANES*2-1); // rough
+        g.beginPath();
+        for (let s=0;s<=14;s++){
+          const yn = s/14;
+          const x = roadXAt(yn, lerp(-0.66,0.66,(l/(LANES))));
+          const y = roadYAt(yn);
+          if (s===0) g.moveTo(x,y); else g.lineTo(x,y);
+        }
+        g.stroke();
+      }
+      g.globalAlpha = 1;
+
+      // moving stripes
+      const sp = gm.speed();
+      const offset = (gm.t * sp * 0.55) % 1;
+      for (let i=0;i<22;i++){
+        const yn = (i/22 + offset) % 1;
+        const y = roadYAt(yn);
+        const w = lerp(roadXAt(yn,1)-roadXAt(yn,-1), (roadXAt(yn,1)-roadXAt(yn,-1))*0.55, 0.0);
+        g.globalAlpha = 0.10;
+        g.fillStyle = '#ffffff';
+        const cx = roadXAt(yn,0);
+        const hh = lerp(2*dpr, 14*dpr, yn);
+        g.fillRect(cx - w*0.12, y, w*0.24, hh);
+      }
+      g.globalAlpha = 1;
+
+      // draw entities in depth order (by y)
+      const ents = [];
+      for (const o of gm.obstacles) ents.push({k:'o',y:o.y,ref:o});
+      for (const c of gm.coins) ents.push({k:'c',y:c.y,ref:c});
+      ents.sort((a,b)=>a.y-b.y);
+
+      function sizeAtY(yn){ return lerp(0.55, 1.40, easeOutCubic(yn)); }
+
+      for (const e of ents) {
+        if (e.k === 'o') {
+          const o = e.ref;
+          const s = sizeAtY(o.y);
+          const xN = laneXNorm(o.lane);
+          const x = roadXAt(o.y, xN);
+          const y = roadYAt(o.y);
+          const rw = (roadXAt(o.y,1)-roadXAt(o.y,-1));
+          const w = rw * (o.w/3) * s;
+          const h = (H*0.06) * o.h/0.14 * s;
+          // shadow
+          g.globalAlpha = 0.35;
+          g.fillStyle = 'rgba(0,0,0,.45)';
+          roundRect(x-w*0.5, y+h*0.35, w, h*0.35, 10*dpr);
+          g.fill();
+          g.globalAlpha = 1;
+          // body
+          const grad = g.createLinearGradient(x, y, x, y+h);
+          grad.addColorStop(0, o.kind==='gate' ? '#ffd166' : '#ff8aa1');
+          grad.addColorStop(1, o.kind==='gate' ? '#ff9f1c' : '#ff4d6d');
+          g.fillStyle = grad;
+          roundRect(x-w*0.5, y-h*0.5, w, h, 12*dpr);
+          g.fill();
+          // icon stripe
+          g.globalAlpha = 0.25;
+          g.fillStyle = '#ffffff';
+          roundRect(x-w*0.35, y-h*0.10, w*0.70, h*0.20, 10*dpr);
+          g.fill();
+          g.globalAlpha = 1;
+        } else {
+          const c = e.ref;
+          const s = sizeAtY(c.y);
+          const xN = laneXNorm(c.lane);
+          const x = roadXAt(c.y, xN);
+          const y = roadYAt(c.y);
+          const r = (H*0.018) * s;
+          // glow
+          g.globalAlpha = 0.20;
+          g.fillStyle = '#6cf0c2';
+          g.beginPath(); g.arc(x,y,r*2.1,0,Math.PI*2); g.fill();
+          g.globalAlpha = 1;
+          // coin
+          const cg = g.createRadialGradient(x-r*0.3,y-r*0.3,r*0.3,x,y,r);
+          cg.addColorStop(0,'#f7fffb');
+          cg.addColorStop(1,'#6cf0c2');
+          g.fillStyle = cg;
+          g.beginPath(); g.arc(x,y,r,0,Math.PI*2); g.fill();
+          g.globalAlpha = 0.22;
+          g.fillStyle = '#0b1020';
+          g.beginPath(); g.arc(x,y,r*0.55,0,Math.PI*2); g.fill();
+          g.globalAlpha = 1;
+        }
+      }
+
+      // player
+      const plY = PLAYER_Y;
+      const plXn = laneXNorm(gm.lane) + gm.steer*0.08;
+      const px = roadXAt(plY, plXn);
+      const py = roadYAt(plY);
+      const rw = (roadXAt(plY,1)-roadXAt(plY,-1));
+      const pw = rw * 0.17;
+      const ph = H * 0.085;
+      // shadow
+      g.globalAlpha = 0.40;
+      g.fillStyle = 'rgba(0,0,0,.45)';
+      roundRect(px-pw*0.52, py+ph*0.30, pw*1.04, ph*0.28, 14*dpr);
+      g.fill();
+      g.globalAlpha = 1;
+      // body
+      const pg = g.createLinearGradient(px, py-ph*0.5, px, py+ph*0.5);
+      pg.addColorStop(0,'#9fb6ff');
+      pg.addColorStop(1,'#4b6bff');
+      g.fillStyle = pg;
+      roundRect(px-pw*0.5, py-ph*0.55, pw, ph, 16*dpr);
+      g.fill();
+      // visor
+      g.globalAlpha = 0.9;
+      const vg = g.createLinearGradient(px, py-ph*0.25, px, py);
+      vg.addColorStop(0,'#eaf0ff');
+      vg.addColorStop(1,'#c7d3ff');
+      g.fillStyle = vg;
+      roundRect(px-pw*0.30, py-ph*0.22, pw*0.60, ph*0.28, 14*dpr);
+      g.fill();
+      g.globalAlpha = 1;
+
+      // particles
+      for (const p of gm.fx) {
+        const k = p.kind;
+        const a = 1 - (p.t/p.life);
+        const yn = p.y;
+        const x = roadXAt(yn, laneXNorm(p.x));
+        const y = roadYAt(yn);
+        g.globalAlpha = 0.85 * a;
+        g.fillStyle = k === 'hit' ? '#ff4d6d' : '#6cf0c2';
+        g.beginPath();
+        g.arc(x + p.vx*80*dpr, y + p.vy*80*dpr, (k==='hit'?2.2:1.8)*dpr, 0, Math.PI*2);
+        g.fill();
+      }
+      g.globalAlpha = 1;
+
+      g.restore(); // clip
+
+      // screen flash (hit/finish)
+      if (gm.flash > 0) {
+        g.globalAlpha = gm.win ? gm.flash*0.18 : gm.flash*0.22;
+        g.fillStyle = gm.win ? '#6cf0c2' : '#ff4d6d';
+        g.fillRect(0,0,W,H);
+        g.globalAlpha = 1;
+      }
+    }
+
+    function roundRect(x,y,w,h,r){
+      const rr = Math.max(0, Math.min(r, Math.min(w,h)*0.5));
+      g.beginPath();
+      g.moveTo(x+rr,y);
+      g.arcTo(x+w,y,x+w,y+h,rr);
+      g.arcTo(x+w,y+h,x,y+h,rr);
+      g.arcTo(x,y+h,x,y,rr);
+      g.arcTo(x,y,x+w,y,rr);
+      g.closePath();
+    }
+
+    // ---- wiring ----
+    const game = new Game();
+    const input = new Input();
+
+    input.onLaneDelta = (d) => {
+      if (!game.running) return;
+      game.laneTarget = clamp(game.laneTarget + d, 0, LANES-1);
+    };
+    input.onSteer = (s) => { game.steer = s; };
+
+    function showStart() {
+      ui.start.style.display = 'flex';
+      ui.end.style.display = 'none';
+    }
+    function showEnd() {
+      ui.start.style.display = 'none';
+      ui.end.style.display = 'flex';
+      ui.endHint.textContent = `Your score: ${Math.floor(game.score)}`;
+      document.getElementById('endTitle').textContent = game.win ? 'Congratulation !' : 'Ouch!';
+      document.getElementById('endSubtitle').textContent = game.win ? 'Choose your reward!' : 'Try again for a reward!';
+    }
+    function setHUD() {
+      ui.score.textContent = String(Math.floor(game.score));
+      ui.dist.textContent = `${Math.floor(game.dist)}m`;
+    }
+
+    ui.btnPlay.addEventListener('click', () => {
+      ui.start.style.display = 'none';
+      game.start();
+    });
+    ui.btnRetry.addEventListener('click', () => {
+      showStart();
+      // small delay to avoid accidental immediate start
+      setTimeout(() => { /* no-op */ }, 0);
+    });
+    ui.btnInstall.addEventListener('click', doClickthrough);
+    ui.btnDownload.addEventListener('click', doClickthrough);
+    ui.btnSound.addEventListener('click', () => {
+      SFX.enabled = !SFX.enabled;
+      ui.btnSound.textContent = `SOUND: ${SFX.enabled ? 'ON' : 'OFF'}`;
+      ui.status.textContent = `Sound ${SFX.enabled ? 'enabled' : 'disabled'}`;
+    });
+    for (const el of document.querySelectorAll('.reward')) {
+      el.addEventListener('click', () => {
+        SFX.reward();
+        doClickthrough();
+      });
+    }
+
+    // ---- main loop ----
+    let last = performance.now();
+    function frame(now) {
+      const dt = clamp((now - last) / 1000, 0, 0.033);
+      last = now;
+      if (canvas.width !== Math.floor(canvas.getBoundingClientRect().width * dpr)) resize();
+
+      game.update(dt);
+      draw(game);
+      setHUD();
+
+      if (game.ended && ui.end.style.display === 'none') showEnd();
+      requestAnimationFrame(frame);
+    }
+    showStart();
+    requestAnimationFrame(frame);
+
+    // Pause audio on background
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) ui.status.textContent = 'Paused';
+    });
+  })();
+  </script>
+</body>
+</html>
