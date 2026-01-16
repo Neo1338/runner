@@ -218,9 +218,9 @@
     const ROAD_TOP = 0.10;    // y start (fraction)
     const ROAD_BOT = 0.98;
     const PLAYER_Y = 0.82;    // fraction (in road space)
-    const FINISH_DIST = 850;  // meters to "finish"
-    const OBSTACLE_RATE0 = 1.10; // spawns/sec initial
-    const OBSTACLE_RATE1 = 1.75; // at finish
+    const FINISH_DIST = 380;  // meters to "finish" (short pacing for playable)
+    const OBSTACLE_RATE0 = 0.95; // rows/sec initial
+    const OBSTACLE_RATE1 = 1.35; // at finish
     const SPEED0 = 7.0;       // road units/sec
     const SPEED1 = 12.5;
 
@@ -349,14 +349,24 @@
         const p = clamp(this.dist / FINISH_DIST, 0, 1);
         return lerp(OBSTACLE_RATE0, OBSTACLE_RATE1, p);
       }
-      spawnObstacle() {
-        // type: block or gate
-        const lane = Math.floor(rng(0, LANES));
-        const kind = Math.random() < 0.78 ? 'block' : 'gate';
-        const y = -0.08;
-        const w = kind === 'gate' ? 0.55 : 0.40;
-        const h = kind === 'gate' ? 0.10 : 0.14;
-        this.obstacles.push({ kind, lane, y, w, h, hit:false, color: kind==='gate' ? '#ffb703' : '#ff4d6d' });
+      spawnRow() {
+        // Spawn 1–2 obstacles but always leave at least 1 lane open (avoid unwinnable rows).
+        const lanes = [];
+        for (let i=0;i<LANES;i++) lanes.push(i);
+        for (let i=lanes.length-1;i>0;i--){
+          const j = (Math.random()*(i+1))|0;
+          [lanes[i], lanes[j]] = [lanes[j], lanes[i]];
+        }
+        const maxBlocks = Math.max(1, LANES-1);
+        const count = Math.random() < 0.22 ? Math.min(2, maxBlocks) : 1;
+        const y = -0.10;
+        for (let i=0;i<count;i++){
+          const lane = lanes[i];
+          const kind = Math.random() < 0.86 ? 'block' : 'gate';
+          const w = kind === 'gate' ? 0.55 : 0.40;
+          const h = kind === 'gate' ? 0.10 : 0.14;
+          this.obstacles.push({ kind, lane, y, w, h, hit:false, color: kind==='gate' ? '#ffb703' : '#ff4d6d' });
+        }
       }
       spawnCoin() {
         const lane = Math.floor(rng(0, LANES));
@@ -386,13 +396,11 @@
         const snap = 12; // higher = snappier
         this.lane += (this.laneTarget - this.lane) * clamp(dt*snap,0,1);
 
-        // spawn obstacles
+        // spawn obstacle rows
         this.spawnAcc += dt * this.obstacleRate();
         while (this.spawnAcc >= 1) {
           this.spawnAcc -= 1;
-          this.spawnObstacle();
-          // occasionally add pair
-          if (Math.random() < 0.18) this.spawnObstacle();
+          this.spawnRow();
         }
         // spawn coins
         this.coinAcc += dt * lerp(0.65, 1.05, clamp(this.dist/FINISH_DIST,0,1));
@@ -680,6 +688,12 @@
     };
     input.onSteer = (s) => { game.steer = s; };
 
+    window.addEventListener('keydown', (e) => {
+      if (!game.running) return;
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') input.onLaneDelta(-1);
+      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') input.onLaneDelta(1);
+    });
+
     function showStart() {
       ui.start.style.display = 'flex';
       ui.end.style.display = 'none';
@@ -701,9 +715,8 @@
       game.start();
     });
     ui.btnRetry.addEventListener('click', () => {
-      showStart();
-      // small delay to avoid accidental immediate start
-      setTimeout(() => { /* no-op */ }, 0);
+      ui.end.style.display = 'none';
+      game.start();
     });
     ui.btnInstall.addEventListener('click', doClickthrough);
     ui.btnDownload.addEventListener('click', doClickthrough);
