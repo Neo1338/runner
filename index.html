@@ -126,7 +126,7 @@
       </div>
     </div>
 
-    <div class="center" id="endScreen" style="display:none">
+    <div class="center" id="endScreen" hidden>
       <div class="panel">
         <div class="title" id="endTitle">Congratulation!</div>
         <div class="subtitle" id="endSubtitle">Choose your reward!</div>
@@ -695,12 +695,12 @@
     });
 
     function showStart() {
-      ui.start.style.display = 'flex';
-      ui.end.style.display = 'none';
+      ui.start.hidden = false;
+      ui.end.hidden = true;
     }
     function showEnd() {
-      ui.start.style.display = 'none';
-      ui.end.style.display = 'flex';
+      ui.start.hidden = true;
+      ui.end.hidden = false;
       ui.endHint.textContent = `Your score: ${Math.floor(game.score)}`;
       document.getElementById('endTitle').textContent = game.win ? 'Congratulation !' : 'Ouch!';
       document.getElementById('endSubtitle').textContent = game.win ? 'Choose your reward!' : 'Try again for a reward!';
@@ -711,11 +711,11 @@
     }
 
     ui.btnPlay.addEventListener('click', () => {
-      ui.start.style.display = 'none';
+      ui.start.hidden = true;
       game.start();
     });
     ui.btnRetry.addEventListener('click', () => {
-      ui.end.style.display = 'none';
+      ui.end.hidden = true;
       game.start();
     });
     ui.btnInstall.addEventListener('click', doClickthrough);
@@ -743,7 +743,7 @@
       draw(game);
       setHUD();
 
-      if (game.ended && ui.end.style.display === 'none') showEnd();
+      if (game.ended && ui.end.hidden) showEnd();
       requestAnimationFrame(frame);
     }
     showStart();
