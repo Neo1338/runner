@@ -27438,9 +27438,10 @@ fn mainFragment(
             (this.app.stage.sortableChildren = !0);
         }
         createUI() {
-          (this.uiContainer = document.getElementById('ui-container') || document.createElement('div')),
+          const t = document.getElementById('ui-container');
+          (this.uiContainer = t || document.createElement('div')),
             (this.uiContainer.id = 'ui-container'),
-            document.body.appendChild(this.uiContainer);
+            t ? this.uiContainer.replaceChildren() : document.body.appendChild(this.uiContainer);
           const e = this.createHeader();
           this.uiContainer.appendChild(e),
             (this.tutorialOverlay = this.createTutorialOverlay()),
@@ -27631,7 +27632,8 @@ fn mainFragment(
             this.tutorialOverlay.classList.remove('hidden');
         }
         hideTutorial() {
-          this.tutorialOverlay.classList.add('hidden');
+          this.tutorialOverlay.classList.add('hidden'),
+            document.querySelectorAll('.tutorial-overlay').forEach((e) => e.classList.add('hidden'));
         }
         updateHP(e) {
           this.renderHearts(e);
