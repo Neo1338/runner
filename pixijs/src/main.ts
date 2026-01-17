@@ -10,6 +10,10 @@ import {
 } from 'pixi.js';
 import { uiAssets } from './uiAssets';
 import bgImage from './assets/bg/bg.webp';
+import flashlightImage from './assets/ui/flashlight.png';
+import bushImage from './assets/ui/bush.png';
+import bush2Image from './assets/ui/bush2.png';
+import bush3Image from './assets/ui/bush3.png';
 
 const MAX_HP = 3;
 
@@ -265,12 +269,22 @@ async function bootstrap() {
   ]);
 
   const backgroundTexture = await Assets.load(bgImage);
+  const flashlightTexture = await Assets.load(flashlightImage);
+  const bushTextures = await Promise.all([
+    Assets.load(bushImage),
+    Assets.load(bush2Image),
+    Assets.load(bush3Image),
+  ]);
   const backgroundA = new Sprite(backgroundTexture);
   const backgroundB = new Sprite(backgroundTexture);
   backgroundA.anchor.set(0.5);
   backgroundB.anchor.set(0.5);
   scene.addChild(backgroundA);
   scene.addChild(backgroundB);
+  const decorLayer = new Container();
+  scene.addChild(decorLayer);
+  const bushLayer = new Container();
+  scene.addChild(bushLayer);
 
   const BASE_WIDTH = 720;
   const BASE_HEIGHT = 1280;
@@ -366,12 +380,99 @@ async function bootstrap() {
 
   let bgScale = 1;
   let bgWidth = 0;
+  const FLASHLIGHT_SCALE = 0.9;
+  const FLASHLIGHT_SPACING = 700;
+  const FLASHLIGHT_Y = BASE_HEIGHT * 0.305;
+  let flashlightScale = 1;
+  const flashlights: Sprite[] = [];
+  const BUSH_SCALE = 0.3;
+  const BUSH_SPAWN_MIN = 1;
+  const BUSH_SPAWN_MAX = 1.8;
+  const BUSH_Y = BASE_HEIGHT * 0.54;
+  const BUSH_SPAWN_X_MIN = BASE_WIDTH + 500;
+  const BUSH_SPAWN_X_MAX = BASE_WIDTH + 1000;
+  const BUSH_INITIAL_X_MIN = -400;
+  const BUSH_INITIAL_X_MAX = BASE_WIDTH + 400;
+  const BUSH_INITIAL_GAP_MIN = 260;
+  const BUSH_INITIAL_GAP_MAX = 640;
+  let bushScale = 1;
+  let bushTimer = 0;
+  let nextBushDelay = BUSH_SPAWN_MIN;
+  const bushes: Sprite[] = [];
 
   const applyFlip = (sprite: Sprite, flip: boolean) => {
     sprite.scale.set(flip ? -bgScale : bgScale, bgScale);
   };
 
+  const ensureFlashlights = () => {
+    const needed = Math.ceil((BASE_WIDTH + FLASHLIGHT_SPACING * 2) / FLASHLIGHT_SPACING);
+    while (flashlights.length < needed) {
+      const sprite = new Sprite(flashlightTexture);
+      sprite.anchor.set(0.5);
+      sprite.scale.set(flashlightScale);
+      decorLayer.addChild(sprite);
+      flashlights.push(sprite);
+    }
+  };
+
+  const scheduleNextBush = () => {
+    nextBushDelay =
+      BUSH_SPAWN_MIN + Math.random() * (BUSH_SPAWN_MAX - BUSH_SPAWN_MIN);
+  };
+
+  const addBushSprite = (desiredX: number) => {
+    const lastTexture = bushes[bushes.length - 1]?.texture;
+    const options =
+      lastTexture == null
+        ? bushTextures
+        : bushTextures.filter((item) => item !== lastTexture);
+    const texture = options[Math.floor(Math.random() * options.length)];
+    const sprite = new Sprite(texture);
+    sprite.anchor.set(0.5, 1);
+    sprite.scale.set(bushScale);
+    let x = desiredX;
+    if (bushes.length > 0) {
+      const lastBush = bushes[bushes.length - 1];
+      const minSpacing = 0.5 * Math.max(sprite.width, lastBush.width);
+      if (x - lastBush.x < minSpacing) {
+        x = lastBush.x + minSpacing;
+      }
+    }
+    sprite.x = x;
+    sprite.y = BUSH_Y;
+    bushLayer.addChild(sprite);
+    bushes.push(sprite);
+  };
+
+  const spawnBushCluster = (baseX: number) => {
+    const count = 1 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < count; i += 1) {
+      const desiredX = baseX + (Math.random() * 60 - 30);
+      addBushSprite(desiredX);
+    }
+  };
+
+  const clearBushes = () => {
+    for (const sprite of bushes) {
+      sprite.destroy();
+    }
+    bushes.length = 0;
+    bushLayer.removeChildren();
+  };
+
+  const seedInitialBushes = () => {
+    clearBushes();
+    let x = BUSH_INITIAL_X_MIN;
+    while (x < BUSH_INITIAL_X_MAX) {
+      spawnBushCluster(x);
+      x +=
+        BUSH_INITIAL_GAP_MIN +
+        Math.random() * (BUSH_INITIAL_GAP_MAX - BUSH_INITIAL_GAP_MIN);
+    }
+  };
+
   let scrollOffset = 0;
+  let worldOffset = 0;
   let segmentIndex = 0;
 
   const layoutBackgrounds = () => {
@@ -388,17 +489,33 @@ async function bootstrap() {
 
     bgScale = BASE_HEIGHT / backgroundTexture.height;
     bgWidth = backgroundTexture.width * bgScale;
+    flashlightScale = bgScale * FLASHLIGHT_SCALE;
+    bushScale = bgScale * BUSH_SCALE;
+    ensureFlashlights();
+    for (const sprite of flashlights) {
+      sprite.scale.set(flashlightScale);
+      sprite.y = FLASHLIGHT_Y;
+    }
+    seedInitialBushes();
+    for (const sprite of bushes) {
+      sprite.scale.set(bushScale);
+      sprite.y = BUSH_Y;
+    }
 
     const bgCenterY = BASE_HEIGHT * 0.5;
     backgroundA.position.set(BASE_WIDTH * 0.5, bgCenterY);
     backgroundB.position.set(BASE_WIDTH * 0.5 + bgWidth, bgCenterY);
     scrollOffset = -BASE_WIDTH * 0.5 - bgWidth * 0.5;
+    worldOffset = scrollOffset;
     segmentIndex = 0;
     applyFlip(backgroundA, false);
     applyFlip(backgroundB, true);
   };
 
   
+
+  scheduleNextBush();
+  bushTimer = 0;
 
   app.ticker.add((ticker) => {
     const dt = ticker.deltaMS / 1000;
@@ -421,6 +538,33 @@ async function bootstrap() {
         scrollOffset += bgWidth;
         segmentIndex += 1;
       }
+      worldOffset -= backgroundSpeed * dt;
+
+      bushTimer += dt;
+      if (bushTimer >= nextBushDelay) {
+        bushTimer = 0;
+        scheduleNextBush();
+        spawnBushCluster(
+          BUSH_SPAWN_X_MIN +
+            Math.random() * (BUSH_SPAWN_X_MAX - BUSH_SPAWN_X_MIN)
+        );
+      }
+
+      for (let i = bushes.length - 1; i >= 0; i -= 1) {
+        const sprite = bushes[i];
+        sprite.x -= backgroundSpeed * dt;
+        if (sprite.x < -sprite.width * 3) {
+          sprite.destroy();
+          bushes.splice(i, 1);
+        }
+      }
+    }
+
+    const spacing = FLASHLIGHT_SPACING;
+    const offset = ((worldOffset % spacing) + spacing) % spacing;
+    const startX = -spacing + offset;
+    for (let i = 0; i < flashlights.length; i += 1) {
+      flashlights[i].x = startX + i * spacing;
     }
 
     const baseX = BASE_WIDTH * 0.5 + scrollOffset;
