@@ -5,6 +5,8 @@ import {
   Assets,
   Container,
   Graphics,
+  MeshRope,
+  Point,
   Sprite,
   Text,
   Texture,
@@ -20,6 +22,16 @@ import pickup2Image from './assets/ui/pickup2.webp';
 import obstacleImage from './assets/ui/obstacle.webp';
 import obstacle2Image from './assets/ui/obstacle2.webp';
 import finishImage from './assets/ui/finish.png';
+import finishLineLeftImage from './assets/ui/finish-line-left.png';
+import finishLineRightImage from './assets/ui/finish-line-right.png';
+import finishLeftImage from './assets/ui/finish-left.png';
+import finishRightImage from './assets/ui/finish-right.png';
+import confetti1Image from './assets/ui/confetti.png';
+import confetti2Image from './assets/ui/confetti2.png';
+import confetti3Image from './assets/ui/confetti3.png';
+import confetti4Image from './assets/ui/confetti4.png';
+import confetti5Image from './assets/ui/confetti5.png';
+import confetti6Image from './assets/ui/confetti6.png';
 
 const MAX_HP = 3;
 
@@ -299,6 +311,22 @@ async function bootstrap() {
     Assets.load(obstacle2Image),
   ]);
   const finishTexture = await Assets.load(finishImage);
+  const finishLineTextures = await Promise.all([
+    Assets.load(finishLineLeftImage),
+    Assets.load(finishLineRightImage),
+  ]);
+  const finishPoleTextures = await Promise.all([
+    Assets.load(finishLeftImage),
+    Assets.load(finishRightImage),
+  ]);
+  const confettiTextures = await Promise.all([
+    Assets.load(confetti1Image),
+    Assets.load(confetti2Image),
+    Assets.load(confetti3Image),
+    Assets.load(confetti4Image),
+    Assets.load(confetti5Image),
+    Assets.load(confetti6Image),
+  ]);
   const backgroundA = new Sprite(backgroundTexture);
   const backgroundB = new Sprite(backgroundTexture);
   backgroundA.anchor.set(0.5);
@@ -317,12 +345,18 @@ async function bootstrap() {
   scene.addChild(enemyLayer);
   const finishLayer = new Container();
   scene.addChild(finishLayer);
+  const confettiLayer = new Container();
+  scene.addChild(confettiLayer);
 
   const BASE_WIDTH = 720;
   const BASE_HEIGHT = 1280;
   const PLAYER_SCALE = 1.1;
   const groundHeight = 120;
   const groundLift = 180;
+  const finishDimmer = new Graphics();
+  finishDimmer.rect(0, 0, BASE_WIDTH, BASE_HEIGHT).fill({ color: 0x000000 });
+  finishDimmer.alpha = 0;
+  scene.addChild(finishDimmer);
   const ground = new Graphics()
     .rect(0, 0, app.renderer.width, groundHeight);
   ground.y = app.renderer.height - groundHeight - groundLift;
@@ -337,9 +371,13 @@ async function bootstrap() {
   player.x = 140;
   player.y = ground.y - player.height * 0.5;
   scene.addChild(player);
+  scene.setChildIndex(finishDimmer, scene.children.length - 1);
+  scene.setChildIndex(confettiLayer, scene.children.length - 1);
 
   let velocityY = 0;
   let isJumping = false;
+  let jumpQueued = false;
+  let jumpEnabled = false;
   let isRunning = false;
   const backgroundSpeed = 500;
   const START_BALANCE = 0;
@@ -359,6 +397,8 @@ async function bootstrap() {
   let invincibleTimer = 0;
   let blinkTimer = 0;
   let blinkOn = false;
+  let collectiblesCount = 0;
+  let nextPraiseAt = 3 + Math.floor(Math.random() * 2);
   let isLosing = false;
   let loseFadeTimer = 0;
   let distanceTraveled = 0;
@@ -395,21 +435,38 @@ async function bootstrap() {
     }
   };
 
+  const getRunAnimation = () => (isRunning ? 'run' : 'idle');
+
   player.onComplete = () => {
     if (currentAnimation === 'jump') {
-      playAnimation(isRunning ? 'run' : 'idle');
+      playAnimation(getRunAnimation());
     }
     if (currentAnimation === 'hurt') {
-      playAnimation(isRunning ? 'run' : 'idle');
+      playAnimation(getRunAnimation());
     }
   };
 
   const startGame = () => {
     if (isRunning) return;
     if (hp <= 0) return;
+    if (finishLine !== null) return;
+    finishDimTarget = 0;
+    finishDimmer.alpha = 0;
     isRunning = true;
+    jumpEnabled = false;
     uiContainer.querySelector('#tutorial-overlay')?.remove();
-    playAnimation('run');
+    playAnimation(getRunAnimation());
+    window.setTimeout(() => {
+      jumpEnabled = true;
+      jumpQueued = false;
+    }, 200);
+  };
+
+  const handleInput = (event?: Event) => {
+    if (event && event.cancelable) {
+      event.preventDefault();
+    }
+    jump();
   };
 
   function jump() {
@@ -418,15 +475,26 @@ async function bootstrap() {
       startGame();
       return;
     }
+    if (!jumpEnabled) return;
     const floorY = ground.y - player.height * 0.5;
-    if (Math.abs(player.y - floorY) < 1) {
+    const grounded =
+      player.y >= floorY - 8 && Math.abs(velocityY) < 80 && !isJumping;
+    if (grounded) {
       velocityY = jumpVelocity;
       isJumping = true;
+      jumpQueued = false;
       playAnimation('jump');
+    } else if (isRunning) {
+      jumpQueued = true;
     }
   }
 
-  window.addEventListener('pointerdown', jump);
+  window.addEventListener('pointerdown', (event) => {
+    if (event.target !== app.canvas) {
+      handleInput(event);
+    }
+  }, { passive: false });
+  app.canvas.addEventListener('pointerdown', handleInput, { passive: false });
   window.addEventListener('keydown', (event) => {
     if (event.code === 'Space') jump();
   });
@@ -464,12 +532,76 @@ async function bootstrap() {
   const ENEMY_SCALE = 0.40;
   const FINISH_SCALE = 0.9;
   const ENEMY_CHASE_SPEED = 300;
+  const ENEMY_SPEED_MULTIPLIER = 1;
   const OBSTACLE_PULSE_SPEED = 6;
   const OFFSCREEN_MARGIN_RATIO = 0.7;
   const OFFSCREEN_MARGIN = BASE_WIDTH * OFFSCREEN_MARGIN_RATIO;
   const obstacles: { container: Container; danger: Sprite; pulseOffset: number }[] = [];
   const enemies: AnimatedSprite[] = [];
-  let finishLine: Sprite | null = null;
+  type FinishLine = {
+    container: Container;
+    base: Sprite;
+    tapeLeft: Sprite;
+    tapeRight: Sprite;
+    poleLeft: Sprite;
+    poleRight: Sprite;
+    leftRope?: MeshRope;
+    rightRope?: MeshRope;
+    leftRopePoints: Point[];
+    rightRopePoints: Point[];
+    leftVelocities: { x: number; y: number }[];
+    rightVelocities: { x: number; y: number }[];
+    animationTime: number;
+    isAnimating: boolean;
+    broken: boolean;
+  };
+  let finishLine: FinishLine | null = null;
+  const TAPE = {
+    ROPE_SEGMENTS: 10,
+    ROPE_LENGTH_FACTOR: 0.3,
+    GRAVITY: 0.3,
+    DAMPING: 0.95,
+    WAVE_SPEED: 0.01,
+    TIME_DECAY: 0.15,
+    MIN_VELOCITY_THRESHOLD: 0.1,
+    MIN_ANIMATION_TIME: 1,
+    ROPE_SEGMENT_DISTANCE: 10,
+    LEFT_ROPE_OFFSET_X: 0,
+    LEFT_ROPE_OFFSET_Y: 0,
+    RIGHT_ROPE_OFFSET_X: 20,
+    RIGHT_ROPE_OFFSET_Y: -20,
+    TAPE_BREAK_OFFSET: -300,
+    SCALE_X: 1.8,
+  };
+  const CONFETTI = {
+    PARTICLE_COUNT: 280,
+    LIFETIME: 5000,
+    FADE_START: 0.7,
+    SCALE_MIN: 0.8,
+    SCALE_MAX: 1.5,
+    BURST_SPEED_MIN: 6,
+    BURST_SPEED_MAX: 20,
+    BURST_ANGLE_SPREAD: 30,
+    SIDE_MARGIN: 50,
+    SIDE_SPAWN_HEIGHT: 0.7,
+    SIDE_SPAWN_SPREAD_Y: 200,
+    SPAWN_SPREAD_X: 100,
+    SPAWN_SPREAD_Y: 50,
+    GRAVITY: 0.05,
+    AIR_RESISTANCE: 0.998,
+    WIND_X: 0,
+    ROTATION_SPEED_MIN: 0.02,
+    ROTATION_SPEED_MAX: 0.1,
+  };
+  const confettiParticles: {
+    sprite: Sprite;
+    vx: number;
+    vy: number;
+    rotation: number;
+    lifetime: number;
+    maxLifetime: number;
+  }[] = [];
+  let finishDimTarget = 0;
   const warningLabels: { container: Container; x: number }[] = [];
   let hasSeededDecor = false;
   let hasSetInitialOffset = false;
@@ -596,13 +728,54 @@ async function bootstrap() {
 
   const spawnFinish = (baseX: number) => {
     if (finishLine) return;
-    const sprite = new Sprite(finishTexture);
-    sprite.anchor.set(0.5, 1);
-    sprite.scale.set(bgScale * FINISH_SCALE);
-    sprite.x = baseX;
-    sprite.y = ground.y;
-    finishLayer.addChild(sprite);
-    finishLine = sprite;
+    const container = new Container();
+    container.x = baseX;
+    container.y = ground.y;
+    const base = new Sprite(finishTexture);
+    base.anchor.set(0.5, 1);
+    base.scale.set(bgScale * FINISH_SCALE);
+    container.addChild(base);
+    const poleLeft = new Sprite(finishPoleTextures[0]);
+    poleLeft.anchor.set(0.5, 1);
+    poleLeft.rotation = Math.PI / 2;
+    poleLeft.scale.set(bgScale * FINISH_SCALE * 0.5);
+    container.addChild(poleLeft);
+    const poleRight = new Sprite(finishPoleTextures[1] ?? finishPoleTextures[0]);
+    poleRight.anchor.set(0.5, 1);
+    poleRight.rotation = Math.PI / 2;
+    poleRight.scale.set(bgScale * FINISH_SCALE * 0.7);
+    container.addChild(poleRight);
+    const tapeLeft = new Sprite(finishLineTextures[0]);
+    tapeLeft.anchor.set(0, 0);
+    tapeLeft.scale.set(
+      bgScale * FINISH_SCALE * TAPE.SCALE_X * 0.7,
+      bgScale * FINISH_SCALE * 0.7
+    );
+    const tapeRight = new Sprite(finishLineTextures[1]);
+    tapeRight.anchor.set(1, 0);
+    tapeRight.scale.set(
+      bgScale * FINISH_SCALE * TAPE.SCALE_X * 0.5,
+      bgScale * FINISH_SCALE * 0.5
+    );
+    container.addChild(tapeLeft);
+    container.addChild(tapeRight);
+    finishLayer.addChild(container);
+    finishLine = {
+      container,
+      base,
+      tapeLeft,
+      tapeRight,
+      poleLeft,
+      poleRight,
+      leftRopePoints: [],
+      rightRopePoints: [],
+      leftVelocities: [],
+      rightVelocities: [],
+      animationTime: 0,
+      isAnimating: false,
+      broken: false,
+    };
+    positionFinishTape();
   };
 
   const addBushSprite = (desiredX: number) => {
@@ -843,12 +1016,17 @@ async function bootstrap() {
     if (countdownText) {
       countdownText.textContent = 'Next payment in one minute';
     }
-    if (!isWin && footer) {
+    if (footer) {
       footer.style.display = 'none';
     }
+    endOverlay.classList.toggle('dim', !isWin);
+    finishDimTarget = isWin ? 0.35 : 0;
     endOverlay.classList.remove('hidden');
     playEndScreenAnimations(value);
     startCountdown(60);
+    if (isWin) {
+      confettiBurstFromSides(BASE_WIDTH, BASE_HEIGHT);
+    }
   };
 
   const showFailAnimation = () => {
@@ -936,6 +1114,194 @@ async function bootstrap() {
     });
   };
 
+  const showPraisePopup = () => {
+    const phrases = ['Awesome!', 'Fantastic!', 'Great!', 'Perfect!'];
+    const text = phrases[Math.floor(Math.random() * phrases.length)];
+    const popup = document.createElement('div');
+    popup.className = 'praise-popup';
+    popup.textContent = text;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const offsetX = (Math.random() - 0.5) * 60;
+    const offsetY = (Math.random() - 0.5) * 40;
+    popup.style.left = `${width / 2 + offsetX}px`;
+    popup.style.top = `${height * 0.4 + offsetY}px`;
+    document.body.appendChild(popup);
+    popup.addEventListener('animationend', () => {
+      popup.remove();
+    });
+  };
+
+  const positionFinishTape = () => {
+    if (!finishLine) return;
+    const base = finishLine.base;
+    const leftEdge = -base.width * 0.48;
+    const tapeTopY = -base.height * 0.78;
+    const tapeBottomY = -base.height * 0.12;
+    const poleX = leftEdge - base.width * 0.03;
+    finishLine.poleLeft.x = poleX * 0.96;
+    finishLine.poleRight.x = poleX * 0.62;
+    finishLine.poleLeft.y = tapeTopY * 2.1;
+    finishLine.poleRight.y = tapeBottomY * 6;
+    const leftTapeX = finishLine.poleLeft.x;
+    const rightTapeX = finishLine.poleRight.x - 35 * bgScale * FINISH_SCALE;
+    const leftTapeY = finishLine.poleLeft.y - 35 * bgScale * FINISH_SCALE;
+    const rightTapeY = finishLine.poleRight.y - 50 * bgScale * FINISH_SCALE;
+    finishLine.tapeLeft.x = leftTapeX;
+    finishLine.tapeLeft.y = leftTapeY;
+    finishLine.tapeRight.x = rightTapeX;
+    finishLine.tapeRight.y = rightTapeY;
+    finishLine.tapeLeft.rotation = 0.4;
+    finishLine.tapeRight.rotation = -2.55;
+  };
+
+  const confettiBurst = (x: number, y: number, angleDeg = -90) => {
+    const angle = (angleDeg * Math.PI) / 180;
+    const spread = (CONFETTI.BURST_ANGLE_SPREAD * Math.PI) / 180;
+    for (let i = 0; i < CONFETTI.PARTICLE_COUNT; i += 1) {
+      const texture =
+        confettiTextures[Math.floor(Math.random() * confettiTextures.length)];
+      const sprite = new Sprite(texture);
+      sprite.anchor.set(0.5);
+      const scale =
+        CONFETTI.SCALE_MIN +
+        Math.random() * (CONFETTI.SCALE_MAX - CONFETTI.SCALE_MIN);
+      sprite.scale.set(scale);
+      sprite.x = x + (Math.random() - 0.5) * CONFETTI.SPAWN_SPREAD_X;
+      sprite.y = y + (Math.random() - 0.5) * CONFETTI.SPAWN_SPREAD_Y;
+      const localAngle = angle + (Math.random() - 0.5) * spread;
+      const speed =
+        CONFETTI.BURST_SPEED_MIN +
+        Math.random() * (CONFETTI.BURST_SPEED_MAX - CONFETTI.BURST_SPEED_MIN);
+      const vx = Math.cos(localAngle) * speed;
+      const vy = Math.sin(localAngle) * speed;
+      const rotSpeed =
+        CONFETTI.ROTATION_SPEED_MIN +
+        Math.random() * (CONFETTI.ROTATION_SPEED_MAX - CONFETTI.ROTATION_SPEED_MIN);
+      const rotation = (Math.random() > 0.5 ? 1 : -1) * rotSpeed;
+      confettiLayer.addChild(sprite);
+      confettiParticles.push({
+        sprite,
+        vx,
+        vy,
+        rotation,
+        lifetime: 0,
+        maxLifetime: CONFETTI.LIFETIME,
+      });
+    }
+  };
+
+  const confettiBurstFromSides = (width: number, height: number) => {
+    const y = height * CONFETTI.SIDE_SPAWN_HEIGHT;
+    confettiBurst(CONFETTI.SIDE_MARGIN, y, -70);
+    confettiBurst(width - CONFETTI.SIDE_MARGIN, y, -110);
+  };
+
+  const createRopeFromTape = (
+    tape: Sprite,
+    texture: Texture,
+    points: Point[],
+    side: 'left' | 'right'
+  ) => {
+    points.length = 0;
+    const width = texture.width * Math.abs(tape.scale.x);
+    const height = texture.height * Math.abs(tape.scale.y);
+    const cos = Math.cos(tape.rotation);
+    const sin = Math.sin(tape.rotation);
+    const offsetX = -tape.anchor.x * width;
+    const offsetY = -tape.anchor.y * height;
+    const anchorX = offsetX * cos - offsetY * sin;
+    const anchorY = offsetX * sin + offsetY * cos;
+    const sideOffsetX = side === 'left' ? TAPE.LEFT_ROPE_OFFSET_X : TAPE.RIGHT_ROPE_OFFSET_X;
+    const sideOffsetY = side === 'left' ? TAPE.LEFT_ROPE_OFFSET_Y : TAPE.RIGHT_ROPE_OFFSET_Y;
+    for (let i = 0; i < TAPE.ROPE_SEGMENTS; i += 1) {
+      const dist = (i / (TAPE.ROPE_SEGMENTS - 1)) * width * TAPE.ROPE_LENGTH_FACTOR;
+      const dx = dist * cos;
+      const dy = dist * sin;
+      const x = tape.x + anchorX + dx + sideOffsetX;
+      const y = tape.y + anchorY + dy + sideOffsetY;
+      points.push(new Point(x, y));
+    }
+    const rope = new MeshRope({ texture, points });
+    finishLine!.container.addChild(rope);
+    if (side === 'left') {
+      finishLine!.leftRope = rope;
+    } else {
+      finishLine!.rightRope = rope;
+    }
+  };
+
+  const animateRopePoints = (points: Point[], velocities: { x: number; y: number }[]) => {
+    const decay = Math.exp(-finishLine!.animationTime * TAPE.TIME_DECAY);
+    const gravity = TAPE.GRAVITY * decay;
+    const wave = decay;
+    for (let i = 1; i < points.length; i += 1) {
+      const point = points[i];
+      const vel = velocities[i];
+      vel.y += gravity;
+      const waveOffset = Math.sin(finishLine!.animationTime + i * TAPE.WAVE_SPEED) * 2 * wave;
+      vel.x += waveOffset * 0.1;
+      vel.x *= TAPE.DAMPING;
+      vel.y *= TAPE.DAMPING;
+      point.x += vel.x;
+      point.y += vel.y;
+      const prev = points[i - 1];
+      const dx = point.x - prev.x;
+      const dy = point.y - prev.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const target = TAPE.ROPE_SEGMENT_DISTANCE;
+      if (dist > 0) {
+        const diff = (dist - target) / dist;
+        const offsetX = dx * diff * 0.5;
+        const offsetY = dy * diff * 0.5;
+        point.x -= offsetX;
+        point.y -= offsetY;
+      }
+    }
+  };
+
+  const updateRopeAnimation = () => {
+    if (!finishLine) return;
+    finishLine.animationTime += 0.05;
+    animateRopePoints(finishLine.leftRopePoints, finishLine.leftVelocities);
+    animateRopePoints(finishLine.rightRopePoints, finishLine.rightVelocities);
+    let total = 0;
+    let count = 0;
+    [...finishLine.leftVelocities, ...finishLine.rightVelocities].forEach((v) => {
+      total += Math.sqrt(v.x * v.x + v.y * v.y);
+      count += 1;
+    });
+    const avg = count > 0 ? total / count : 0;
+    if (avg < TAPE.MIN_VELOCITY_THRESHOLD && finishLine.animationTime > TAPE.MIN_ANIMATION_TIME) {
+      finishLine.isAnimating = false;
+    }
+  };
+
+  const breakFinishTape = () => {
+    if (!finishLine || finishLine.broken) return;
+    finishLine.broken = true;
+    finishLine.tapeLeft.visible = false;
+    finishLine.tapeRight.visible = false;
+    createRopeFromTape(
+      finishLine.tapeLeft,
+      finishLineTextures[0],
+      finishLine.leftRopePoints,
+      'left'
+    );
+    createRopeFromTape(
+      finishLine.tapeRight,
+      finishLineTextures[1],
+      finishLine.rightRopePoints,
+      'right'
+    );
+    finishLine.leftVelocities = finishLine.leftRopePoints.map(() => ({ x: 0, y: 0 }));
+    finishLine.rightVelocities = finishLine.rightRopePoints.map(() => ({ x: 0, y: 0 }));
+    finishLine.animationTime = 0;
+    finishLine.isAnimating = true;
+
+    // Confetti on finish is handled via burstFromSides to match reference.
+  };
+
   const spawnFromScript = () => {
     while (spawnIndex < spawnScript.length) {
       const entry = spawnScript[spawnIndex];
@@ -1020,10 +1386,26 @@ async function bootstrap() {
       sprite.y = ground.y;
     }
     if (finishLine) {
-      finishLine.scale.set(bgScale * FINISH_SCALE);
-      finishLine.y = ground.y;
+      finishLine.container.y = ground.y;
+      finishLine.base.scale.set(bgScale * FINISH_SCALE);
+      finishLine.tapeLeft.scale.set(
+        bgScale * FINISH_SCALE * TAPE.SCALE_X * 0.7,
+        bgScale * FINISH_SCALE * 0.7
+      );
+      finishLine.tapeRight.scale.set(
+        bgScale * FINISH_SCALE * TAPE.SCALE_X * 0.5,
+        bgScale * FINISH_SCALE * 0.5
+      );
+      finishLine.poleLeft.scale.set(bgScale * FINISH_SCALE * 0.5);
+      finishLine.poleRight.scale.set(bgScale * FINISH_SCALE * 0.7);
+      positionFinishTape();
     }
-
+    finishDimmer.clear();
+    finishDimmer
+      .rect(0, 0, app.renderer.width, app.renderer.height)
+      .fill({ color: 0x000000 });
+    finishDimmer.position.set(-app.stage.position.x / scale, 0);
+    finishDimmer.scale.set(1 / scale);
     const bgCenterY = BASE_HEIGHT * 0.5;
     backgroundA.position.set(BASE_WIDTH * 0.5, bgCenterY);
     backgroundB.position.set(BASE_WIDTH * 0.5 + bgWidth, bgCenterY);
@@ -1048,7 +1430,13 @@ async function bootstrap() {
       velocityY = 0;
       if (isJumping) {
         isJumping = false;
-        playAnimation(isRunning ? 'run' : 'idle');
+        playAnimation(getRunAnimation());
+      }
+      if (jumpQueued && isRunning && jumpEnabled) {
+        jumpQueued = false;
+        velocityY = jumpVelocity;
+        isJumping = true;
+        playAnimation('jump');
       }
     }
 
@@ -1101,7 +1489,8 @@ async function bootstrap() {
 
       for (let i = enemies.length - 1; i >= 0; i -= 1) {
         const sprite = enemies[i];
-        sprite.x -= (backgroundSpeed + ENEMY_CHASE_SPEED) * dt;
+        sprite.x -=
+          (backgroundSpeed + ENEMY_CHASE_SPEED) * ENEMY_SPEED_MULTIPLIER * dt;
         if (sprite.x < -OFFSCREEN_MARGIN) {
           sprite.destroy();
           enemies.splice(i, 1);
@@ -1121,11 +1510,15 @@ async function bootstrap() {
       }
 
       if (finishLine) {
-        finishLine.x -= backgroundSpeed * dt;
-        if (finishLine.x < -OFFSCREEN_MARGIN) {
-          finishLine.destroy();
+        finishLine.container.x -= backgroundSpeed * dt;
+        if (finishLine.container.x < -OFFSCREEN_MARGIN) {
+          finishLine.container.destroy();
           finishLine = null;
-        } else if (finishLine.x <= player.x) {
+        } else if (
+          finishLine.container.x <= BASE_WIDTH * 0.5 &&
+          !finishLine.broken
+        ) {
+          breakFinishTape();
           isRunning = false;
           playAnimation('idle');
           showEndScreen(true, score);
@@ -1136,7 +1529,7 @@ async function bootstrap() {
       if (!isInvincible) {
         for (let i = 0; i < obstacles.length; i += 1) {
           const obstacleBounds = obstacles[i].container.getBounds();
-          if (ellipsesIntersect(playerBounds, obstacleBounds)) {
+          if (ellipsesIntersect(playerBounds, obstacleBounds, 0.6)) {
             handlePlayerHit();
             break;
           }
@@ -1144,7 +1537,7 @@ async function bootstrap() {
       }
       if (!isInvincible) {
         for (let i = 0; i < enemies.length; i += 1) {
-          if (ellipsesIntersect(playerBounds, enemies[i].getBounds())) {
+          if (ellipsesIntersect(playerBounds, enemies[i].getBounds(), 0.6)) {
             handlePlayerHit();
             break;
           }
@@ -1162,6 +1555,12 @@ async function bootstrap() {
           score += reward;
           animateFlyingCollectible(item.sprite, item.type);
           updateScoreDisplay();
+          collectiblesCount += 1;
+          if (collectiblesCount >= nextPraiseAt) {
+            showPraisePopup();
+            collectiblesCount = 0;
+            nextPraiseAt = 3 + Math.floor(Math.random() * 2);
+          }
           item.sprite.destroy();
           pickups.splice(i, 1);
         }
@@ -1191,6 +1590,41 @@ async function bootstrap() {
       }
       if (t >= 1) {
         isLosing = false;
+      }
+    }
+
+    if (finishDimmer.alpha !== finishDimTarget) {
+      const blend = Math.min(dt * 3, 1);
+      finishDimmer.alpha =
+        finishDimmer.alpha + (finishDimTarget - finishDimmer.alpha) * blend;
+    }
+
+    if (finishLine?.isAnimating) {
+      updateRopeAnimation();
+    }
+
+    const step = ticker.deltaMS / 16.666;
+    for (let i = confettiParticles.length - 1; i >= 0; i -= 1) {
+      const particle = confettiParticles[i];
+      particle.lifetime += ticker.deltaMS;
+      if (particle.lifetime >= particle.maxLifetime) {
+        particle.sprite.destroy();
+        confettiParticles.splice(i, 1);
+        continue;
+      }
+      particle.vy += CONFETTI.GRAVITY * step;
+      particle.vx += CONFETTI.WIND_X * step;
+      particle.vx *= CONFETTI.AIR_RESISTANCE;
+      particle.vy *= CONFETTI.AIR_RESISTANCE;
+      particle.sprite.x += particle.vx * step;
+      particle.sprite.y += particle.vy * step;
+      particle.sprite.rotation += particle.rotation * step;
+      const fadeStart = particle.maxLifetime * CONFETTI.FADE_START;
+      if (particle.lifetime >= fadeStart) {
+        const t =
+          (particle.lifetime - fadeStart) /
+          (particle.maxLifetime - fadeStart);
+        particle.sprite.alpha = 1 - t;
       }
     }
 
