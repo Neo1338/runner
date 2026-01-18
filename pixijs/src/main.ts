@@ -508,7 +508,9 @@ async function bootstrap() {
     jumpEnabled = false;
     setTutorialVisible(false);
     playAnimation(getRunAnimation());
-    bgm.play().catch(() => {});
+    setTimeout(() => {
+      bgm.play().catch((e) => {console.log(e)});
+    }, 500);
   };
 
   const handleInput = (event?: Event) => {
