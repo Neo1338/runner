@@ -378,6 +378,9 @@ async function bootstrap() {
   let isJumping = false;
   let jumpQueued = false;
   let jumpEnabled = false;
+  let tutorialEnemy: AnimatedSprite | null = null;
+  let tutorialTriggered = false;
+  let tutorialActive = false;
   let isRunning = false;
   const backgroundSpeed = 500;
   const START_BALANCE = 0;
@@ -437,6 +440,17 @@ async function bootstrap() {
 
   const getRunAnimation = () => (isRunning ? 'run' : 'idle');
 
+  const setTutorialVisible = (visible: boolean, text?: string) => {
+    const overlay =
+      uiContainer.querySelector<HTMLDivElement>('#tutorial-overlay');
+    if (!overlay) return;
+    if (text) {
+      const label = overlay.querySelector<HTMLDivElement>('#tutorial-text');
+      if (label) label.textContent = text;
+    }
+    overlay.classList.toggle('hidden', !visible);
+  };
+
   player.onComplete = () => {
     if (currentAnimation === 'jump') {
       playAnimation(getRunAnimation());
@@ -454,12 +468,8 @@ async function bootstrap() {
     finishDimmer.alpha = 0;
     isRunning = true;
     jumpEnabled = false;
-    uiContainer.querySelector('#tutorial-overlay')?.remove();
+    setTutorialVisible(false);
     playAnimation(getRunAnimation());
-    window.setTimeout(() => {
-      jumpEnabled = true;
-      jumpQueued = false;
-    }, 200);
   };
 
   const handleInput = (event?: Event) => {
@@ -471,6 +481,18 @@ async function bootstrap() {
 
   function jump() {
     if (hp <= 0) return;
+    if (tutorialActive) {
+      tutorialActive = false;
+      isRunning = true;
+      tutorialEnemy?.play();
+      setTutorialVisible(false);
+      jumpEnabled = true;
+      jumpQueued = false;
+      velocityY = jumpVelocity;
+      isJumping = true;
+      playAnimation('jump');
+      return;
+    }
     if (!isRunning) {
       startGame();
       return;
@@ -713,7 +735,7 @@ async function bootstrap() {
     }
   };
 
-  const spawnEnemy = (baseX: number) => {
+  const spawnEnemy = (baseX: number, pauseForTutorial = false) => {
     const sprite = new AnimatedSprite(enemyFrames);
     sprite.anchor.set(0.5, 1);
     sprite.scale.set(-bgScale * ENEMY_SCALE, bgScale * ENEMY_SCALE);
@@ -724,6 +746,9 @@ async function bootstrap() {
     sprite.y = ground.y;
     enemyLayer.addChild(sprite);
     enemies.push(sprite);
+    if (pauseForTutorial && !tutorialEnemy) {
+      tutorialEnemy = sprite;
+    }
   };
 
   const spawnFinish = (baseX: number) => {
@@ -1315,7 +1340,7 @@ async function bootstrap() {
           spawnPickup(spawnX, entry.yOffset ?? 0);
           break;
         case 'enemy':
-          spawnEnemy(spawnX);
+          spawnEnemy(spawnX, entry.pauseForTutorial ?? false);
           break;
         case 'obstacle':
           spawnObstacle(spawnX, entry.warningLabel ?? false);
@@ -1522,6 +1547,18 @@ async function bootstrap() {
           isRunning = false;
           playAnimation('idle');
           showEndScreen(true, score);
+        }
+      }
+
+      if (!tutorialTriggered && tutorialEnemy && isRunning) {
+        const pauseDistance = 260;
+        if (tutorialEnemy.x - player.x <= pauseDistance) {
+          tutorialTriggered = true;
+          tutorialActive = true;
+          isRunning = false;
+          playAnimation('idle');
+          tutorialEnemy.stop();
+          setTutorialVisible(true, 'Jump to avoid enemies');
         }
       }
 
