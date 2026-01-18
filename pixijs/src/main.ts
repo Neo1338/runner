@@ -573,10 +573,6 @@ async function bootstrap() {
   const BUSH_SPAWN_MIN = 1;
   const BUSH_SPAWN_MAX = 1.8;
   const BUSH_Y = BASE_HEIGHT * 0.54;
-  const BUSH_SPAWN_X_MIN = BASE_WIDTH + 500;
-  const BUSH_SPAWN_X_MAX = BASE_WIDTH + 1000;
-  const BUSH_INITIAL_X_MIN = -400;
-  const BUSH_INITIAL_X_MAX = BASE_WIDTH + 400;
   const BUSH_INITIAL_GAP_MIN = 260;
   const BUSH_INITIAL_GAP_MAX = 640;
   let bushScale = 1;
@@ -597,8 +593,12 @@ async function bootstrap() {
   const ENEMY_CHASE_SPEED = 300;
   const ENEMY_SPEED_MULTIPLIER = 1;
   const OBSTACLE_PULSE_SPEED = 6;
-  const OFFSCREEN_MARGIN_RATIO = 0.7;
+  const OFFSCREEN_MARGIN_RATIO = 1.2;
   const OFFSCREEN_MARGIN = BASE_WIDTH * OFFSCREEN_MARGIN_RATIO;
+  const BUSH_SPAWN_X_MIN = BASE_WIDTH + OFFSCREEN_MARGIN + 200;
+  const BUSH_SPAWN_X_MAX = BASE_WIDTH + OFFSCREEN_MARGIN + 700;
+  const BUSH_INITIAL_X_MIN = -OFFSCREEN_MARGIN;
+  const BUSH_INITIAL_X_MAX = BASE_WIDTH + OFFSCREEN_MARGIN;
   const obstacles: { container: Container; danger: Sprite; pulseOffset: number }[] = [];
   const enemies: AnimatedSprite[] = [];
   type FinishLine = {
@@ -723,7 +723,9 @@ async function bootstrap() {
   };
 
   const ensureFlashlights = () => {
-    const needed = Math.ceil((BASE_WIDTH + FLASHLIGHT_SPACING * 2) / FLASHLIGHT_SPACING);
+    const scale = app.stage.scale.x || 1;
+    const visibleWidth = Math.max(BASE_WIDTH, app.renderer.width / scale);
+    const needed = Math.ceil((visibleWidth + OFFSCREEN_MARGIN * 2 + FLASHLIGHT_SPACING * 2) / FLASHLIGHT_SPACING);
     while (flashlights.length < needed) {
       const sprite = new Sprite(flashlightTexture);
       sprite.anchor.set(0.5);
@@ -1533,7 +1535,7 @@ async function bootstrap() {
       for (let i = bushes.length - 1; i >= 0; i -= 1) {
         const sprite = bushes[i];
         sprite.x -= backgroundSpeed * dt;
-        if (sprite.x < -OFFSCREEN_MARGIN) {
+        if (sprite.x + sprite.width * 0.5 < -OFFSCREEN_MARGIN) {
           sprite.destroy();
           bushes.splice(i, 1);
         }
@@ -1542,7 +1544,7 @@ async function bootstrap() {
       for (let i = pickups.length - 1; i >= 0; i -= 1) {
         const item = pickups[i];
         item.sprite.x -= backgroundSpeed * dt;
-        if (item.sprite.x < -OFFSCREEN_MARGIN) {
+        if (item.sprite.x + item.sprite.width * 0.5 < -OFFSCREEN_MARGIN) {
           item.sprite.destroy();
           pickups.splice(i, 1);
         }
@@ -1555,7 +1557,8 @@ async function bootstrap() {
           0.4 +
           Math.sin(Date.now() * 0.001 * OBSTACLE_PULSE_SPEED + obstacle.pulseOffset) *
             0.4;
-        if (obstacle.container.x < -OFFSCREEN_MARGIN) {
+        const bounds = obstacle.container.getBounds();
+        if (obstacle.container.x + bounds.width < -OFFSCREEN_MARGIN) {
           obstacle.container.destroy();
           obstacles.splice(i, 1);
         }
@@ -1565,7 +1568,7 @@ async function bootstrap() {
         const sprite = enemies[i];
         sprite.x -=
           (backgroundSpeed + ENEMY_CHASE_SPEED) * ENEMY_SPEED_MULTIPLIER * dt;
-        if (sprite.x < -OFFSCREEN_MARGIN) {
+        if (sprite.x + sprite.width * 0.5 < -OFFSCREEN_MARGIN) {
           sprite.destroy();
           enemies.splice(i, 1);
         }
@@ -1577,7 +1580,8 @@ async function bootstrap() {
         label.container.x = label.x;
         const pulse = 1 + Math.sin(Date.now() * 0.008) * 0.1;
         label.container.scale.set(pulse);
-        if (label.x < -OFFSCREEN_MARGIN) {
+        const bounds = label.container.getBounds();
+        if (label.x + bounds.width < -OFFSCREEN_MARGIN) {
           label.container.destroy();
           warningLabels.splice(i, 1);
         }
@@ -1585,7 +1589,8 @@ async function bootstrap() {
 
       if (finishLine) {
         finishLine.container.x -= backgroundSpeed * dt;
-        if (finishLine.container.x < -OFFSCREEN_MARGIN) {
+        const bounds = finishLine.container.getBounds();
+        if (finishLine.container.x + bounds.width < -OFFSCREEN_MARGIN) {
           finishLine.container.destroy();
           finishLine = null;
         } else if (
@@ -1717,9 +1722,10 @@ async function bootstrap() {
 
     const spacing = FLASHLIGHT_SPACING;
     const offset = ((worldOffset % spacing) + spacing) % spacing;
-    const startX = -spacing + offset;
+    const startX = -OFFSCREEN_MARGIN - spacing + offset;
     for (let i = 0; i < flashlights.length; i += 1) {
       flashlights[i].x = startX + i * spacing;
+      flashlights[i].visible = true;
     }
 
     const wrapped = ((worldOffset % bgWidth) + bgWidth) % bgWidth;
