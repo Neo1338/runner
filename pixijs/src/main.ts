@@ -13,19 +13,19 @@ import {
 } from 'pixi.js';
 import { uiAssets } from './uiAssets';
 import bgImage from './assets/bg/bg.webp';
-import flashlightImage from './assets/ui/flashlight.png';
-import bushImage from './assets/ui/bush.png';
-import bush2Image from './assets/ui/bush2.png';
-import bush3Image from './assets/ui/bush3.png';
-import pickupImage from './assets/ui/pickup.png';
+import flashlightImage from './assets/ui/flashlight.webp';
+import bushImage from './assets/ui/bush.webp';
+import bush2Image from './assets/ui/bush2.webp';
+import bush3Image from './assets/ui/bush3.webp';
+import pickupImage from './assets/ui/pickup.webp';
 import pickup2Image from './assets/ui/pickup2.webp';
 import obstacleImage from './assets/ui/obstacle.webp';
 import obstacle2Image from './assets/ui/obstacle2.webp';
-import finishImage from './assets/ui/finish.png';
-import finishLineLeftImage from './assets/ui/finish-line-left.png';
-import finishLineRightImage from './assets/ui/finish-line-right.png';
-import finishLeftImage from './assets/ui/finish-left.png';
-import finishRightImage from './assets/ui/finish-right.png';
+import finishImage from './assets/ui/finish.webp';
+import finishLineLeftImage from './assets/ui/finish-line-left.webp';
+import finishLineRightImage from './assets/ui/finish-line-right.webp';
+import finishLeftImage from './assets/ui/finish-left.webp';
+import finishRightImage from './assets/ui/finish-right.webp';
 import bgmAudio from './assets/audio/bgm.mp3';
 import fallAudio from './assets/audio/fall.mp3';
 import hitAudio from './assets/audio/hit.mp3';
@@ -33,12 +33,12 @@ import jumpAudio from './assets/audio/jump.mp3';
 import jump2Audio from './assets/audio/jump2.mp3';
 import pickupAudio from './assets/audio/pickup.mp3';
 import winAudio from './assets/audio/win.mp3';
-import confetti1Image from './assets/ui/confetti.png';
-import confetti2Image from './assets/ui/confetti2.png';
-import confetti3Image from './assets/ui/confetti3.png';
-import confetti4Image from './assets/ui/confetti4.png';
-import confetti5Image from './assets/ui/confetti5.png';
-import confetti6Image from './assets/ui/confetti6.png';
+import confetti1Image from './assets/ui/confetti.webp';
+import confetti2Image from './assets/ui/confetti2.webp';
+import confetti3Image from './assets/ui/confetti3.webp';
+import confetti4Image from './assets/ui/confetti4.webp';
+import confetti5Image from './assets/ui/confetti5.webp';
+import confetti6Image from './assets/ui/confetti6.webp';
 
 const MAX_HP = 3;
 
@@ -266,19 +266,19 @@ async function bootstrap() {
   const scene = new Container();
   app.stage.addChild(scene);
 
-  const playerSprites = import.meta.glob('./assets/player/*.png', {
+  const playerSprites = import.meta.glob('./assets/player/*.webp', {
     eager: true,
     import: 'default',
   }) as Record<string, string>;
-  const enemySprites = import.meta.glob('./assets/enemy/*.png', {
+  const enemySprites = import.meta.glob('./assets/enemy/*.webp', {
     eager: true,
     import: 'default',
   }) as Record<string, string>;
 
   const sortFrames = (frames: [string, string][]) =>
     frames.sort((a, b) => {
-      const aMatch = a[0].match(/_(\d+)\.png$/);
-      const bMatch = b[0].match(/_(\d+)\.png$/);
+      const aMatch = a[0].match(/_(\d+)\.webp$/);
+      const bMatch = b[0].match(/_(\d+)\.webp$/);
       return Number(aMatch?.[1] ?? 0) - Number(bMatch?.[1] ?? 0);
     });
 
@@ -293,14 +293,22 @@ async function bootstrap() {
     return Promise.all(sorted.map(([, url]) => Assets.load(url)));
   };
 
-  const [runFrames, jumpFrames, idleFrames, hurtFrames, enemyFrames] =
-    await Promise.all([
-      loadFrames(playerSprites, /\/player\/run_/),
-      loadFrames(playerSprites, /\/player\/jump_/),
-      loadFrames(playerSprites, /\/player\/idle_/),
-      loadFrames(playerSprites, /\/player\/hurt_/),
-      loadFrames(enemySprites, /\/enemy\/frame_/),
-    ]);
+  const [
+    runFrames,
+    jumpFrames,
+    idleFrames,
+    hurtFrames,
+    enemyFramesRaw,
+  ] = await Promise.all([
+    loadFrames(playerSprites, /\/player\/run_/),
+    loadFrames(playerSprites, /\/player\/jump_/),
+    loadFrames(playerSprites, /\/player\/idle_/),
+    loadFrames(playerSprites, /\/player\/hurt_/),
+    loadFrames(enemySprites, /\/enemy\/frame_/),
+  ]);
+  const enemyFramesReduced = enemyFramesRaw.filter((_, index) => index % 2 === 0);
+  const enemyFrames =
+    enemyFramesReduced.length > 0 ? enemyFramesReduced : enemyFramesRaw;
 
   const backgroundTexture = await Assets.load(bgImage);
   const flashlightTexture = await Assets.load(flashlightImage);
