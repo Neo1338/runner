@@ -26,6 +26,13 @@ import finishLineLeftImage from './assets/ui/finish-line-left.png';
 import finishLineRightImage from './assets/ui/finish-line-right.png';
 import finishLeftImage from './assets/ui/finish-left.png';
 import finishRightImage from './assets/ui/finish-right.png';
+import bgmAudio from './assets/audio/bgm.mp3';
+import fallAudio from './assets/audio/fall.mp3';
+import hitAudio from './assets/audio/hit.mp3';
+import jumpAudio from './assets/audio/jump.mp3';
+import jump2Audio from './assets/audio/jump2.mp3';
+import pickupAudio from './assets/audio/pickup.mp3';
+import winAudio from './assets/audio/win.mp3';
 import confetti1Image from './assets/ui/confetti.png';
 import confetti2Image from './assets/ui/confetti2.png';
 import confetti3Image from './assets/ui/confetti3.png';
@@ -319,6 +326,21 @@ async function bootstrap() {
     Assets.load(finishLeftImage),
     Assets.load(finishRightImage),
   ]);
+  const bgm = new Audio(bgmAudio);
+  bgm.loop = true;
+  bgm.volume = 0.4;
+  const sfx = {
+    fall: new Audio(fallAudio),
+    hit: new Audio(hitAudio),
+    jump: new Audio(jumpAudio),
+    jump2: new Audio(jump2Audio),
+    pickup: new Audio(pickupAudio),
+    win: new Audio(winAudio),
+  };
+  Object.values(sfx).forEach((audio) => {
+    audio.volume = 0.6;
+    audio.preload = 'auto';
+  });
   const confettiTextures = await Promise.all([
     Assets.load(confetti1Image),
     Assets.load(confetti2Image),
@@ -451,6 +473,14 @@ async function bootstrap() {
     overlay.classList.toggle('hidden', !visible);
   };
 
+  const playSfx = (key: keyof typeof sfx) => {
+    const audio = sfx[key];
+    if (!audio) return;
+    audio.pause();
+    audio.currentTime = 0;
+    audio.play().catch(() => {});
+  };
+
   player.onComplete = () => {
     if (currentAnimation === 'jump') {
       playAnimation(getRunAnimation());
@@ -470,6 +500,7 @@ async function bootstrap() {
     jumpEnabled = false;
     setTutorialVisible(false);
     playAnimation(getRunAnimation());
+    bgm.play().catch(() => {});
   };
 
   const handleInput = (event?: Event) => {
@@ -491,6 +522,7 @@ async function bootstrap() {
       velocityY = jumpVelocity;
       isJumping = true;
       playAnimation('jump');
+      playSfx('jump');
       return;
     }
     if (!isRunning) {
@@ -506,6 +538,7 @@ async function bootstrap() {
       isJumping = true;
       jumpQueued = false;
       playAnimation('jump');
+      playSfx('jump');
     } else if (isRunning) {
       jumpQueued = true;
     }
@@ -1050,6 +1083,10 @@ async function bootstrap() {
     playEndScreenAnimations(value);
     startCountdown(60);
     if (isWin) {
+      bgm.pause();
+      playSfx('win');
+    }
+    if (isWin) {
       confettiBurstFromSides(BASE_WIDTH, BASE_HEIGHT);
     }
   };
@@ -1070,6 +1107,8 @@ async function bootstrap() {
     isLosing = true;
     loseFadeTimer = 0;
     playAnimation('hurt');
+    bgm.pause();
+    playSfx('fall');
     showFailAnimation();
   };
 
@@ -1078,6 +1117,7 @@ async function bootstrap() {
     hp -= 1;
     updateHpDisplay();
     playAnimation('hurt');
+    playSfx('hit');
     isInvincible = true;
     invincibleTimer = INVINCIBILITY_TIME;
     blinkTimer = 0;
@@ -1456,6 +1496,7 @@ async function bootstrap() {
       if (isJumping) {
         isJumping = false;
         playAnimation(getRunAnimation());
+        playSfx('jump2');
       }
       if (jumpQueued && isRunning && jumpEnabled) {
         jumpQueued = false;
@@ -1592,6 +1633,7 @@ async function bootstrap() {
           score += reward;
           animateFlyingCollectible(item.sprite, item.type);
           updateScoreDisplay();
+          playSfx('pickup');
           collectiblesCount += 1;
           if (collectiblesCount >= nextPraiseAt) {
             showPraisePopup();
