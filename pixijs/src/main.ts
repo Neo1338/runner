@@ -11,6 +11,7 @@ import {
   Text,
   Texture,
 } from 'pixi.js';
+import { Howl } from 'howler';
 import { uiAssets } from './uiAssets';
 import bgImage from './assets/bg/bg.webp';
 import flashlightImage from './assets/ui/flashlight.webp';
@@ -258,7 +259,9 @@ async function bootstrap() {
   await app.init({
     background: '#ffffff',
     resizeTo: window,
-    antialias: true,
+    antialias: false, // Отключить для iOS
+    powerPreference: 'high-performance', // Запросить высокую производительность
+    preference: 'webgl', // Принудительно WebGL
   });
 
   appHost.appendChild(app.canvas);
@@ -334,21 +337,27 @@ async function bootstrap() {
     Assets.load(finishLeftImage),
     Assets.load(finishRightImage),
   ]);
-  const bgm = new Audio(bgmAudio);
-  bgm.loop = true;
-  bgm.volume = 0.4;
-  const sfx = {
-    fall: new Audio(fallAudio),
-    hit: new Audio(hitAudio),
-    jump: new Audio(jumpAudio),
-    jump2: new Audio(jump2Audio),
-    pickup: new Audio(pickupAudio),
-    win: new Audio(winAudio),
-  };
-  Object.values(sfx).forEach((audio) => {
-    audio.volume = 0.6;
-    audio.preload = 'auto';
+  // Оптимизированная система аудио на Howler.js для Playable Ads
+  // Howler лучше работает на мобильных и не блокирует загрузку
+  const bgm = new Howl({
+    src: [bgmAudio],
+    loop: true,
+    volume: 0.4,
+    preload: true,
   });
+
+  const sfx = {
+    fall: new Howl({ src: [fallAudio], volume: 0.6, preload: true }),
+    hit: new Howl({ src: [hitAudio], volume: 0.6, preload: true }),
+    jump: new Howl({ src: [jumpAudio], volume: 0.6, preload: true }),
+    jump2: new Howl({ src: [jump2Audio], volume: 0.6, preload: true }),
+    pickup: new Howl({ src: [pickupAudio], volume: 0.6, preload: true }),
+    win: new Howl({ src: [winAudio], volume: 0.6, preload: true }),
+  };
+
+  // Throttling для частых звуков (jump)
+  let lastJumpTime = 0;
+  const JUMP_THROTTLE_MS = 100; // Минимальный интервал между jump звуками
   const confettiTextures = await Promise.all([
     Assets.load(confetti1Image),
     Assets.load(confetti2Image),
@@ -481,12 +490,26 @@ async function bootstrap() {
     overlay.classList.toggle('hidden', !visible);
   };
 
+  // Оптимизированная функция воспроизведения звуков через Howler
   const playSfx = (key: keyof typeof sfx) => {
-    const audio = sfx[key];
-    if (!audio) return;
-    audio.pause();
-    audio.currentTime = 0;
-    audio.play().catch(() => {});
+    try {
+      const sound = sfx[key];
+      if (!sound) return;
+
+      // Throttling для jump звуков
+      if (key === 'jump') {
+        const now = performance.now();
+        if (now - lastJumpTime < JUMP_THROTTLE_MS) {
+          return;
+        }
+        lastJumpTime = now;
+      }
+
+      // Howler автоматически управляет пулами и оптимизацией
+      sound.play();
+    } catch (e) {
+      // Игнорируем ошибки воспроизведения
+    }
   };
 
   player.onComplete = () => {
@@ -508,8 +531,9 @@ async function bootstrap() {
     jumpEnabled = false;
     setTutorialVisible(false);
     playAnimation(getRunAnimation());
+    // Запускаем BGM через Howler
     setTimeout(() => {
-      bgm.play().catch((e) => {console.log(e)});
+      bgm.play();
     }, 500);
   };
 
@@ -532,6 +556,7 @@ async function bootstrap() {
       velocityY = jumpVelocity;
       isJumping = true;
       playAnimation('jump');
+      // Аудио отключено
       playSfx('jump');
       return;
     }
@@ -1095,7 +1120,7 @@ async function bootstrap() {
     playEndScreenAnimations(value);
     startCountdown(60);
     if (isWin) {
-      bgm.pause();
+      bgm.stop();
       playSfx('win');
     }
     if (isWin) {
@@ -1119,7 +1144,7 @@ async function bootstrap() {
     isLosing = true;
     loseFadeTimer = 0;
     playAnimation('hurt');
-    bgm.pause();
+    bgm.stop();
     playSfx('fall');
     showFailAnimation();
   };
